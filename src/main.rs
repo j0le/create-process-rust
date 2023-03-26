@@ -18,11 +18,11 @@ fn main() {
     let mut cmdline_vec : Vec<u16> = vec!();
     unsafe {
         let cmdline_ptr = Environment::GetCommandLineW();
-        let mut cmdline_ptr = cmdline_ptr.as_ptr();
         if cmdline_ptr.is_null() {
             println!("couldn't get commandline");
             return;
         }
+        let mut cmdline_ptr = cmdline_ptr.as_ptr();
         loop {
             let c:u16 = *cmdline_ptr;
             if c == 0 { break; }
