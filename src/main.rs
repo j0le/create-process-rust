@@ -43,9 +43,10 @@ fn main() {
 
 
 
-    let args: Vec<String> = env::args().collect();
-    for n in 0..args.len() {
-        println!("Das {}. Argument ist: »{}«", n, &args[n]);
+    let mut n : usize = 0;
+    for arg in env::args() {
+        println!("Das {}. Argument ist: »{}«", n, arg);
+        n += 1;
     }
     
     loop {
