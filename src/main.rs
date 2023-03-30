@@ -9,36 +9,32 @@ use std::{
     time, 
 };
 
-use windows::Win32::System::Environment ;
+use windows::{
+    core::PWSTR,
+    Win32::System::Environment,
+};
 
 
 
 fn main() {
 
-    let mut cmdline_vec : Vec<u16> = vec!();
-    unsafe {
-        let cmdline_ptr = Environment::GetCommandLineW();
+    let cmdline:OsString = unsafe {
+        let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
         if cmdline_ptr.is_null() {
             println!("couldn't get commandline");
             return;
         }
-        let mut cmdline_ptr = cmdline_ptr.as_ptr();
-        loop {
-            let c:u16 = *cmdline_ptr;
-            if c == 0 { break; }
-            cmdline_vec.push(c);
-            cmdline_ptr = cmdline_ptr.add(1);
-        }
-    }
+        OsStringExt::from_wide(cmdline_ptr.as_wide())
+    };
 
-    let cmdline : OsString = OsStringExt::from_wide(cmdline_vec.as_slice());
     match cmdline.to_str() {
         Some(str) => {
-            println!("could convert commandline losslesly.");
+            println!("Die Kommandozeile konnte verlustfrei konvertiert werden.");
             println!("Die command line sieht wie folgt aus:\n»{}«", str);
         },
         None => {
             let str = cmdline.to_string_lossy();
+            println!("Die Kommandozeile muste verlustbehaftet konvertiert werden.");
             println!("Die command line sieht wie folgt aus: »{}«", str);
         }
     };
