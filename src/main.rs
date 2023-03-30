@@ -27,17 +27,21 @@ fn main() {
         OsStringExt::from_wide(cmdline_ptr.as_wide())
     };
 
-    match cmdline.to_str() {
+    let cmdline = match cmdline.to_str() {
         Some(str) => {
             println!("Die Kommandozeile konnte verlustfrei konvertiert werden.");
-            println!("Die command line sieht wie folgt aus:\n»{}«", str);
+            std::borrow::Cow::from(str)
         },
         None => {
-            let str = cmdline.to_string_lossy();
             println!("Die Kommandozeile muste verlustbehaftet konvertiert werden.");
-            println!("Die command line sieht wie folgt aus: »{}«", str);
+            cmdline.to_string_lossy()
         }
     };
+    println!("Die command line sieht wie folgt aus,\
+              aber ohne die spitzen Anführungszeichen (»«): \n\
+              »{}«\n", cmdline);
+
+
 
     let args: Vec<String> = env::args().collect();
     for n in 0..args.len() {
