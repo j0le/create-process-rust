@@ -37,11 +37,9 @@ fn main() {
             cmdline.to_string_lossy()
         }
     };
-    println!("Die command line sieht wie folgt aus,\
+    println!("Die command line sieht wie folgt aus, \
               aber ohne die spitzen Anführungszeichen (»«): \n\
               »{}«\n", cmdline);
-
-
 
     let mut n : usize = 0;
     for arg in env::args() {
