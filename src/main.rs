@@ -154,20 +154,18 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
 
 fn main() {
 
-    let parsed_args_list = unsafe {
-        let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
-        let wstr_iter = WStrUnits::new(cmdline_ptr.as_ptr());
-        parse_lp_cmd_line(wstr_iter)
-    };
-
-    let cmdline:OsString = unsafe {
+    let (wstr_iter,cmdline): (Option<WStrUnits>, OsString) = unsafe {
         let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
         if cmdline_ptr.is_null() {
             println!("couldn't get commandline");
             return;
         }
-        OsStringExt::from_wide(cmdline_ptr.as_wide())
+        (
+            WStrUnits::new(cmdline_ptr.as_ptr()),
+            OsStringExt::from_wide(cmdline_ptr.as_wide()),
+        )
     };
+    let parsed_args_list = parse_lp_cmd_line(wstr_iter);
 
     let cmdline = match cmdline.to_str() {
         Some(str) => {
