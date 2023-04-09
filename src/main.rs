@@ -206,4 +206,13 @@ fn main() {
 }
 
 
-
+// What commandline options do I want to have?
+// We do these:
+// --program <program>
+// --program=<program>
+// --program-is-null
+// --program-from-cmd-line
+// --cmd-line-in-arg <commandline>
+// --cmd-line-in-arg=<commandline>
+// --cmd-line-is-rest <args>...
+// --prepend-program
