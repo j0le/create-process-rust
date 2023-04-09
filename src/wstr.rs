@@ -12,6 +12,7 @@ pub struct WStrUnits<'a> {
     lpwstr: NonNull<u16>,
     // ...and the memory it points to must be valid for this lifetime.
     lifetime: PhantomData<&'a [u16]>,
+    index: usize,
 }
 
 impl WStrUnits<'_> {
@@ -20,7 +21,7 @@ impl WStrUnits<'_> {
     /// SAFETY: `lpwstr` must point to a null-terminated wide string that lives
     /// at least as long as the lifetime of this struct.
     pub unsafe fn new(lpwstr: *const u16) -> Option<Self> {
-        Some(Self { lpwstr: NonNull::new(lpwstr as _)?, lifetime: PhantomData })
+        Some(Self { lpwstr: NonNull::new(lpwstr as _)?, lifetime: PhantomData, index: 0 })
     }
 
     pub fn peek(&self) -> Option<NonZeroU16> {
@@ -42,6 +43,10 @@ impl WStrUnits<'_> {
         }
         counter
     }
+
+    pub fn get_index(&self) -> usize {
+        self.index
+    }
 }
 
 impl Iterator for WStrUnits<'_> {
@@ -50,10 +55,9 @@ impl Iterator for WStrUnits<'_> {
     fn next(&mut self) -> Option<NonZeroU16> {
         // SAFETY: If NULL is reached we immediately return.
         // Therefore it's safe to advance the pointer after that.
-        unsafe {
-            let next = self.peek()?;
-            self.lpwstr = NonNull::new_unchecked(self.lpwstr.as_ptr().add(1));
-            Some(next)
-        }
+        let next = self.peek()?;
+        self.lpwstr = unsafe { NonNull::new_unchecked(self.lpwstr.as_ptr().add(1)) };
+        self.index += 1;
+        Some(next)
     }
 }
