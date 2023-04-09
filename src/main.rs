@@ -28,7 +28,7 @@ const fn non_zero_u16(n: u16) -> NonZeroU16 {
 
 struct Arg {
     arg: OsString,
-    index: usize,
+    pos: usize,
 }
 
 /// Implements the Windows command-line argument parsing algorithm.
@@ -82,7 +82,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
     }
     // Skip whitespace.
     code_units.advance_while(|w| w == SPACE || w == TAB);
-    ret_val.push(Arg{ arg: OsString::from_wide(&cur), index, });
+    ret_val.push(Arg{ arg: OsString::from_wide(&cur), pos: index, });
 
     // Parse the arguments according to these rules:
     // * All code units are taken literally except space, tab, quote and backslash.
@@ -103,7 +103,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
-                ret_val.push(Arg{ arg: OsString::from_wide(&cur[..]), index, });
+                ret_val.push(Arg{ arg: OsString::from_wide(&cur[..]), pos: index, });
                 cur.truncate(0);
 
                 // Skip whitespace.
@@ -147,7 +147,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
     }
     // Push the final argument, if any.
     if !cur.is_empty() || in_quotes {
-        ret_val.push(Arg{ arg: OsString::from_wide(&cur[..]), index, });
+        ret_val.push(Arg{ arg: OsString::from_wide(&cur[..]), pos: index, });
     }
     ret_val
 }
@@ -184,7 +184,7 @@ fn main() {
               »{}«\n", cmdline);
 
     let mut n : usize = 0;
-    for Arg {arg, index: pos} in parsed_args_list {
+    for Arg {arg, pos} in parsed_args_list {
         match arg.to_str() {
             Some(arg) => {
                 println!("Argument {:2}, pos {:3}, lossless: »{}«", n, pos, arg);
