@@ -27,6 +27,11 @@ const fn non_zero_u16(n: u16) -> NonZeroU16 {
     }
 }
 
+struct Arg {
+    arg: OsString,
+    index: usize,
+}
+
 /// Implements the Windows command-line argument parsing algorithm.
 ///
 /// Microsoft's documentation for the Windows CLI argument format can be found at
@@ -47,13 +52,13 @@ const fn non_zero_u16(n: u16) -> NonZeroU16 {
 /// This function was tested for equivalence to the C/C++ parsing rules using an
 /// extensive test suite available at
 /// <https://github.com/ChrisDenton/winarg/tree/std>.
-fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> {
+fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
     const BACKSLASH: NonZeroU16 = non_zero_u16(b'\\' as u16);
     const QUOTE: NonZeroU16 = non_zero_u16(b'"' as u16);
     const TAB: NonZeroU16 = non_zero_u16(b'\t' as u16);
     const SPACE: NonZeroU16 = non_zero_u16(b' ' as u16);
 
-    let mut ret_val = Vec::<OsString>::new();
+    let mut ret_val = Vec::<Arg>::new();
     // If the cmd line pointer is null or it points to an empty string then
     // return an empty vector.
     if lp_cmd_line.as_ref().and_then(|cmd| cmd.peek()).is_none() {
@@ -64,6 +69,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> 
     // The executable name at the beginning is special.
     let mut in_quotes = false;
     let mut cur = Vec::new();
+    let mut index = code_units.get_index();
     for w in &mut code_units {
         match w {
             // A quote mark always toggles `in_quotes` no matter what because
@@ -77,7 +83,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> 
     }
     // Skip whitespace.
     code_units.advance_while(|w| w == SPACE || w == TAB);
-    ret_val.push(OsString::from_wide(&cur));
+    ret_val.push(Arg{ arg: OsString::from_wide(&cur), index: index, });
 
     // Parse the arguments according to these rules:
     // * All code units are taken literally except space, tab, quote and backslash.
@@ -93,15 +99,17 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> 
     // (i.e. two consecutive quotes become one literal quote).
     let mut cur = Vec::new();
     let mut in_quotes = false;
+    index = code_units.get_index();
     while let Some(w) = code_units.next() {
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
-                ret_val.push(OsString::from_wide(&cur[..]));
+                ret_val.push(Arg{ arg: OsString::from_wide(&cur[..]), index: index, });
                 cur.truncate(0);
 
                 // Skip whitespace.
                 code_units.advance_while(|w| w == SPACE || w == TAB);
+                index = code_units.get_index();
             }
             // Backslashes can escape quotes or backslashes but only if consecutive backslashes are followed by a quote.
             BACKSLASH => {
@@ -140,7 +148,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> 
     }
     // Push the final argument, if any.
     if !cur.is_empty() || in_quotes {
-        ret_val.push(OsString::from_wide(&cur[..]));
+        ret_val.push(Arg{ arg: OsString::from_wide(&cur[..]), index: index, });
     }
     ret_val
 }
@@ -177,13 +185,14 @@ fn main() {
               »{}«\n", cmdline);
 
     let mut n : usize = 0;
-    for arg in parsed_args_list {
+    for Arg {arg, index: pos} in parsed_args_list {
         match arg.to_str() {
             Some(arg) => {
-                println!("{}. Argument ist (lossless): »{}«", n, arg);
+                println!("Argument {:2}, pos {:3}, lossless: »{}«", n, pos, arg);
             },
             None => {
-                println!("{}. Argument ist (lossy):    »{}«", n, arg.to_string_lossy());
+                let arg = arg.to_string_lossy();
+                println!("Argument {:2}, pos {:3}, lossy:    »{}«", n, pos, arg);
             }
         }
         n += 1;
