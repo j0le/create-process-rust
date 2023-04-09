@@ -81,11 +81,11 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
             _ => cur.push(w.get()),
         }
     }
-    // Skip whitespace.
     ret_val.push(Arg{
         arg: OsString::from_wide(&cur),
         range: index..(code_units.get_index().checked_sub(1).unwrap()),
     });
+    // Skip whitespace.
     code_units.advance_while(|w| w == SPACE || w == TAB);
 
     // Parse the arguments according to these rules:
