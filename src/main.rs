@@ -4,8 +4,8 @@ mod wstr;
 use crate::wstr::WStrUnits;
 
 use std::{
-    env, 
     ffi::OsString,
+    ffi::OsStr,
     io,
     io::Write,
     os::windows::ffi::OsStringExt,
@@ -55,21 +55,11 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> 
 
     let mut ret_val = Vec::<OsString>::new();
     // If the cmd line pointer is null or it points to an empty string then
-    // return the name of the executable as argv[0].
+    // return an empty vector.
     if lp_cmd_line.as_ref().and_then(|cmd| cmd.peek()).is_none() {
         return ret_val;
     }
-    let mut code_units = match lp_cmd_line {
-        Some(w) => {
-            if w.peek().is_none() {
-                return ret_val;
-            }
-            w
-        },
-        None => {
-            return ret_val;
-        }
-    };
+    let mut code_units = lp_cmd_line.unwrap();
 
     // The executable name at the beginning is special.
     let mut in_quotes = false;
@@ -157,10 +147,10 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> 
 
 fn main() {
 
-    unsafe {
+    let parsed_args_list = unsafe {
         let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
         let wstr_iter = WStrUnits::new(cmdline_ptr.as_ptr());
-        let parsed_args_list = parse_lp_cmd_line(wstr_iter);
+        parse_lp_cmd_line(wstr_iter)
     };
 
     let cmdline:OsString = unsafe {
@@ -187,8 +177,15 @@ fn main() {
               »{}«\n", cmdline);
 
     let mut n : usize = 0;
-    for arg in env::args() {
-        println!("Das {}. Argument ist: »{}«", n, arg);
+    for arg in parsed_args_list {
+        match arg.to_str() {
+            Some(arg) => {
+                println!("{}. Argument ist (lossless): »{}«", n, arg);
+            },
+            None => {
+                println!("{}. Argument ist (lossy):    »{}«", n, arg.to_string_lossy());
+            }
+        }
         n += 1;
     }
     
