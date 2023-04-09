@@ -52,7 +52,7 @@ struct Arg {
 /// This function was tested for equivalence to the C/C++ parsing rules using an
 /// extensive test suite available at
 /// <https://github.com/ChrisDenton/winarg/tree/std>.
-fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
+fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_special: bool) -> Vec<Arg> {
     const BACKSLASH: NonZeroU16 = non_zero_u16(b'\\' as u16);
     const QUOTE: NonZeroU16 = non_zero_u16(b'"' as u16);
     const TAB: NonZeroU16 = non_zero_u16(b'\t' as u16);
@@ -70,23 +70,25 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
     let mut in_quotes = false;
     let mut cur = Vec::new();
     let mut index = code_units.get_index();
-    for w in &mut code_units {
-        match w {
-            // A quote mark always toggles `in_quotes` no matter what because
-            // there are no escape characters when parsing the executable name.
-            QUOTE => in_quotes = !in_quotes,
-            // If not `in_quotes` then whitespace ends argv[0].
-            SPACE | TAB if !in_quotes => break,
-            // In all other cases the code unit is taken literally.
-            _ => cur.push(w.get()),
+    if handle_first_special {
+        for w in &mut code_units {
+            match w {
+                // A quote mark always toggles `in_quotes` no matter what because
+                // there are no escape characters when parsing the executable name.
+                QUOTE => in_quotes = !in_quotes,
+                // If not `in_quotes` then whitespace ends argv[0].
+                SPACE | TAB if !in_quotes => break,
+                // In all other cases the code unit is taken literally.
+                _ => cur.push(w.get()),
+            }
         }
+        ret_val.push(Arg{
+            arg: OsString::from_wide(&cur),
+            range: index..(code_units.get_index().checked_sub(1).unwrap()),
+        });
+        // Skip whitespace.
+        code_units.advance_while(|w| w == SPACE || w == TAB);
     }
-    ret_val.push(Arg{
-        arg: OsString::from_wide(&cur),
-        range: index..(code_units.get_index().checked_sub(1).unwrap()),
-    });
-    // Skip whitespace.
-    code_units.advance_while(|w| w == SPACE || w == TAB);
 
     // Parse the arguments according to these rules:
     // * All code units are taken literally except space, tab, quote and backslash.
@@ -100,8 +102,8 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
     // * Backslashes not followed by a quote are all taken literally.
     // * If `in_quotes` then a quote can also be escaped using another quote
     // (i.e. two consecutive quotes become one literal quote).
-    let mut cur = Vec::new();
-    let mut in_quotes = false;
+    cur.truncate(0);
+    in_quotes = false;
     index = code_units.get_index();
     while let Some(w) = code_units.next() {
         match w {
@@ -175,7 +177,7 @@ fn main() {
             OsStringExt::from_wide(cmdline_ptr.as_wide()),
         )
     };
-    let parsed_args_list = parse_lp_cmd_line(wstr_iter);
+    let parsed_args_list = parse_lp_cmd_line(wstr_iter, true);
 
     let cmdline_u8 = match cmdline.to_str() {
         Some(str) => {
