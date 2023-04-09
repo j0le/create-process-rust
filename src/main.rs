@@ -84,7 +84,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
     // Skip whitespace.
     ret_val.push(Arg{
         arg: OsString::from_wide(&cur),
-        range: index..code_units.get_index(),
+        range: index..(code_units.get_index().checked_sub(1).unwrap()),
     });
     code_units.advance_while(|w| w == SPACE || w == TAB);
 
@@ -109,7 +109,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<Arg> {
             SPACE | TAB if !in_quotes => {
                 ret_val.push(Arg{
                     arg: OsString::from_wide(&cur[..]),
-                    range: index..code_units.get_index(),
+                    range: index..(code_units.get_index().checked_sub(1).unwrap()),
                 });
                 cur.truncate(0);
 
