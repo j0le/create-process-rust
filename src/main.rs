@@ -1,4 +1,8 @@
 
+mod wstr;
+
+use crate::wstr::WStrUnits;
+
 use std::{
     env, 
     ffi::OsString,
@@ -43,23 +47,29 @@ const fn non_zero_u16(n: u16) -> NonZeroU16 {
 /// This function was tested for equivalence to the C/C++ parsing rules using an
 /// extensive test suite available at
 /// <https://github.com/ChrisDenton/winarg/tree/std>.
-fn parse_lp_cmd_line<'a, F: Fn() -> OsString>(
-    lp_cmd_line: Option<WStrUnits<'a>>,
-    exe_name: F,
-) -> Vec<OsString> {
+fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>,) -> Vec<OsString> {
     const BACKSLASH: NonZeroU16 = non_zero_u16(b'\\' as u16);
     const QUOTE: NonZeroU16 = non_zero_u16(b'"' as u16);
     const TAB: NonZeroU16 = non_zero_u16(b'\t' as u16);
     const SPACE: NonZeroU16 = non_zero_u16(b' ' as u16);
 
-    let mut ret_val = Vec::new();
+    let mut ret_val = Vec::<OsString>::new();
     // If the cmd line pointer is null or it points to an empty string then
     // return the name of the executable as argv[0].
     if lp_cmd_line.as_ref().and_then(|cmd| cmd.peek()).is_none() {
-        ret_val.push(exe_name());
         return ret_val;
     }
-    let mut code_units = lp_cmd_line.unwrap();
+    let mut code_units = match lp_cmd_line {
+        Some(w) => {
+            if w.peek().is_none() {
+                return ret_val;
+            }
+            w
+        },
+        None => {
+            return ret_val;
+        }
+    };
 
     // The executable name at the beginning is special.
     let mut in_quotes = false;
@@ -146,6 +156,12 @@ fn parse_lp_cmd_line<'a, F: Fn() -> OsString>(
 }
 
 fn main() {
+
+    unsafe {
+        let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
+        let wstr_iter = WStrUnits::new(cmdline_ptr.as_ptr());
+        let parsed_args_list = parse_lp_cmd_line(wstr_iter);
+    };
 
     let cmdline:OsString = unsafe {
         let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
