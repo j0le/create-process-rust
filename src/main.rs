@@ -8,6 +8,7 @@ use std::{
     io,
     io::Write,
     os::windows::ffi::OsStringExt,
+    os::windows::ffi::OsStrExt,
     thread, 
     time, 
     num::NonZeroU16
@@ -176,7 +177,7 @@ fn main() {
     };
     let parsed_args_list = parse_lp_cmd_line(wstr_iter);
 
-    let cmdline = match cmdline.to_str() {
+    let cmdline_u8 = match cmdline.to_str() {
         Some(str) => {
             println!("Die Kommandozeile konnte verlustfrei konvertiert werden.");
             std::borrow::Cow::from(str)
@@ -188,19 +189,20 @@ fn main() {
     };
     println!("Die command line sieht wie folgt aus, \
               aber ohne die spitzen Anführungszeichen (»«): \n\
-              »{}«\n", cmdline);
+              »{}«\n", cmdline_u8);
 
     let mut n : usize = 0;
     for Arg {arg, range} in parsed_args_list {
-        match arg.to_str() {
-            Some(arg) => {
-                println!("Argument {:2}, {:3} .. {:3}, lossless: »{}«", n, range.start, range.end, arg);
-            },
-            None => {
-                let arg = arg.to_string_lossy();
-                println!("Argument {:2}, {:3} .. {:3}, lossy:    »{}«", n, range.start, range.end, arg);
-            }
-        }
+        let (lossless_or_lossy, arg) = match arg.to_str() {
+            Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
+            None      => ("lossy:   ", arg.to_string_lossy()),
+        };
+        let x = OsStrExt::encode_wide(cmdline.as_os_str()).collect::<Vec<u16>>();
+        let x = &(&x)[range.clone()];
+        let x : OsString = OsStringExt::from_wide(&x);
+        let x = x.to_string_lossy();
+        println!("Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
+                 n, range.start, range.end, lossless_or_lossy, arg, x);
         n += 1;
     }
     
