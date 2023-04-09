@@ -55,9 +55,9 @@ impl Iterator for WStrUnits<'_> {
     fn next(&mut self) -> Option<NonZeroU16> {
         // SAFETY: If NULL is reached we immediately return.
         // Therefore it's safe to advance the pointer after that.
+        self.index += 1;
         let next = self.peek()?;
         self.lpwstr = unsafe { NonNull::new_unchecked(self.lpwstr.as_ptr().add(1)) };
-        self.index += 1;
         Some(next)
     }
 }
