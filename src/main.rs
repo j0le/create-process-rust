@@ -214,15 +214,15 @@ fn main() {
                  n, range.start, range.end, lossless_or_lossy, arg, x);
         n += 1;
     }
-    
-    loop {
-        print!(".");
-        match io::stdout().flush() {
-            Err(..) => {println!("Cannot flush!"); return;},
-            Ok(()) => {},
-        };
-        thread::sleep(time::Duration::from_millis(2000));
-    }
+
+    //loop {
+    //    print!(".");
+    //    match io::stdout().flush() {
+    //        Err(..) => {println!("Cannot flush!"); return;},
+    //        Ok(()) => {},
+    //    };
+    //    thread::sleep(time::Duration::from_millis(2000));
+    //}
 }
 
 
