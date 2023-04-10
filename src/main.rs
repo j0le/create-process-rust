@@ -4,6 +4,8 @@ use std::{
     io,
     io::Write,
     os::windows::ffi::OsStringExt,
+    os::windows::process::*,
+    process::*,
     thread,
     time,
 };
@@ -221,7 +223,7 @@ fn get_command_line() -> Result<&'static [u16], &'static str> {
 }
 
 
-fn main() -> Result<(), &'static str>{
+fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = get_command_line()?;
     let parsed_args_list = parse_lp_cmd_line(cmdline, true);
 
@@ -260,7 +262,20 @@ fn main() -> Result<(), &'static str>{
             thread::sleep(time::Duration::from_millis(2000));
         }
     }
-    Ok(())
+
+    println!("Execute process:\n");
+    let status: ExitStatus = Command::new("cmd").raw_arg("/c (echo hallo)").status().map_err(|e|{
+        let string : String = e.to_string();
+        string
+        //let boxi : Box<String> = Box::new(string);
+        //let refi : &'static str = Box::leak(boxi);
+        //refi
+    })?;
+
+    let exit_code :i32 = status.code().unwrap_or(0i32);
+    println!("\nThe exit code is {}", exit_code);
+
+    std::process::exit(exit_code);
 }
 
 
