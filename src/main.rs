@@ -145,7 +145,10 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
                 Some(_) => in_quotes = false,
                 // The end of the command line.
                 // Push `cur` even if empty, which we do by breaking while `in_quotes` is still set.
-                None => break,
+                None => {
+                    code_units.next();
+                    break
+                }
             },
             // If not `in_quotes` and not BACKSLASH escaped (see above) then a quote sets `in_quote`.
             QUOTE => in_quotes = true,
@@ -157,7 +160,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
     if !cur.is_empty() || in_quotes {
         ret_val.push(Arg{
             arg: OsString::from_wide(&cur[..]),
-            range: index..code_units.get_index(),
+            range: index..(code_units.get_index().checked_sub(1).unwrap()),
         });
     }
     ret_val
