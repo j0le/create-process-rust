@@ -278,3 +278,6 @@ fn main() -> Result<(), &'static str>{
 // --cmd-line-in-arg=<commandline>
 // --cmd-line-is-rest <args>...
 // --prepend-program
+//
+// For later
+// --cmd-line-from-stdin
