@@ -12,9 +12,6 @@ use std::{
     time,
 };
 
-use core::cell::*;
-use core::ops::Deref;
-
 use windows::{
     core::PWSTR,
     Win32::System::Environment,
@@ -28,17 +25,71 @@ struct Arg<'lifetime_of_slice> {
 }
 
 
-fn advance_while<P: FnMut(u16) -> bool>(index: &mut usize, slice:&[u16], mut predicate: P) -> usize {
-    let mut counter = 0;
-    while *index < slice.len() {
-        if !predicate(slice[*index]) {
-            break;
-        }
-        *index += 1;
-        counter += 1;
-    }
-    counter
+struct ArgListBuilder<'a> {
+    cmd_line: &'a [u16],
+    cur: Vec<u16>,
+    start_index: usize,
+    end_index: usize,
+    arg_list: Vec<Arg<'a>>,
 }
+
+impl<'a> ArgListBuilder<'a> {
+
+    fn new(cmd_line: &'a [u16]) -> Self {
+        Self {
+            cmd_line,
+            cur: vec![],
+            start_index: 0,
+            end_index: 0,
+            arg_list: vec![]
+        }
+    }
+
+    fn push_arg(&mut self){
+        let range = self.start_index..(self.end_index-1); // TODO try ..=
+        self.arg_list.push(Arg{
+            arg: OsString::from_wide(&self.cur),
+            range:range.clone(),
+            raw: &self.cmd_line[range],
+        });
+        self.cur.truncate(0);
+    }
+    fn peek(&self) -> Option<u16> {
+        self.cmd_line.get(self.end_index).map(|w:&u16| *w)
+    }
+    fn next(&mut self) -> Option<u16> {
+        let opt_w = self.peek();
+        if self.end_index <= self.cmd_line.len() {
+            self.end_index += 1;
+        }
+        opt_w
+    }
+
+    fn get_current(&mut self) -> &mut Vec<u16>{
+        &mut self.cur
+    }
+
+    fn set_start_index(&mut self){
+        self.start_index = self.end_index;
+    }
+
+    fn advance_while<P : FnMut(u16) -> bool>(&mut self, mut predicate: P) -> usize {
+        let mut counter = 0;
+        while self.end_index < self.cmd_line.len() {
+            if !predicate(self.cmd_line[self.end_index]) {
+                break;
+            }
+            self.end_index += 1;
+            counter += 1;
+        }
+        counter
+    }
+
+    fn get_arg_list(self) -> Vec<Arg<'a>> {
+        self.arg_list
+    }
+}
+
 
 // from ~/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust/library/std/src/sys/windows/args.rs
 /// Implements the Windows command-line argument parsing algorithm.
@@ -67,46 +118,18 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
     const TAB: u16 = b'\t' as u16;
     const SPACE: u16 = b' ' as u16;
 
-    let mut ret_val = Vec::<Arg<'a>>::new();
     // If the cmd line pointer is null or it points to an empty string then
     // return an empty vector.
     if cmd_line.is_empty() {
-        return ret_val;
+        return Vec::<Arg<'a>>::new();
     }
 
+    let mut builder = ArgListBuilder::new(cmd_line);
+    let mut in_quotes = false;
 
     // The executable name at the beginning is special.
-    let mut in_quotes = false;
-    let cur : RefCell<Vec<u16>> = Vec::new().into();
-    let index : RefCell<usize> = RefCell::new(0);
-    let end_index : RefCell<usize> = RefCell::new(0);
-
-    let mut push_cur = || {
-        let index : usize = *index.borrow();
-        let end_index : usize = *end_index.borrow();
-        let range = index..(end_index-1);
-        let mut cur = cur.borrow_mut();
-        ret_val.push(Arg{
-            arg: OsString::from_wide(cur.deref()),
-            range:range.clone(),
-            raw: &cmd_line[range],
-        });
-        cur.truncate(0);
-    };
-
-    let peek = || -> Option<u16> {
-        cmd_line.get(*end_index.borrow()).map(|w:&u16| *w)
-    };
-
-    let next = || -> Option<u16> {
-        let mut borrowed_index = end_index.borrow_mut();
-        let opt_w = cmd_line.get(*borrowed_index).map(|w:&u16| *w);
-        *borrowed_index += 1;
-        opt_w
-    };
-
     if handle_first_special {
-        while let Some(w) = next() {
+        while let Some(w) = builder.next() {
             match w {
                 // A quote mark always toggles `in_quotes` no matter what because
                 // there are no escape characters when parsing the executable name.
@@ -114,12 +137,13 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
                 // If not `in_quotes` then whitespace ends argv[0].
                 SPACE | TAB if !in_quotes => break,
                 // In all other cases the code unit is taken literally.
-                _ => cur.borrow_mut().push(w),
+                _ => builder.get_current().push(w),
             }
         }
-        push_cur();
+        builder.push_arg();
         // Skip whitespace.
-        advance_while(&mut end_index.borrow_mut(), cmd_line, |w| w == SPACE || w == TAB);
+        builder.advance_while(|w| w == SPACE || w == TAB);
+        builder.set_start_index();
     }
 
     // Parse the arguments according to these rules:
@@ -134,62 +158,57 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
     // * Backslashes not followed by a quote are all taken literally.
     // * If `in_quotes` then a quote can also be escaped using another quote
     // (i.e. two consecutive quotes become one literal quote).
-    cur.borrow_mut().truncate(0);
     in_quotes = false;
-    *index.borrow_mut() = *end_index.borrow();
-    while let Some(w) = next() {
+    while let Some(w) = builder.next() {
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
-                push_cur();
+                builder.push_arg();
 
                 // Skip whitespace.
-                advance_while(&mut end_index.borrow_mut(), cmd_line, |w| w == SPACE || w == TAB);
-                *index.borrow_mut() = *end_index.borrow();
+                builder.advance_while(|w| w == SPACE || w == TAB);
+                builder.set_start_index();
             }
             // Backslashes can escape quotes or backslashes but only if consecutive backslashes are followed by a quote.
             BACKSLASH => {
-                let backslash_count = advance_while(&mut end_index.borrow_mut(), cmd_line, |w| w == BACKSLASH) + 1;
-                if peek() == Some(QUOTE) {
-                    cur.borrow_mut().extend(std::iter::repeat(BACKSLASH).take(backslash_count / 2));
+                let backslash_count = builder.advance_while(|w| w == BACKSLASH) + 1;
+                if builder.peek() == Some(QUOTE) {
+                    builder.get_current().extend(std::iter::repeat(BACKSLASH).take(backslash_count / 2));
                     // The quote is escaped if there are an odd number of backslashes.
                     if backslash_count % 2 == 1 {
-                        *end_index.borrow_mut() +=1;
-                        cur.borrow_mut().push(QUOTE);
+                        builder.next(); // consume the peeked quote
+                        builder.get_current().push(QUOTE);
                     }
                 } else {
                     // If there is no quote on the end then there is no escaping.
-                    cur.borrow_mut().extend(std::iter::repeat(BACKSLASH).take(backslash_count));
+                    builder.get_current().extend(std::iter::repeat(BACKSLASH).take(backslash_count));
                 }
             }
             // If `in_quotes` and not backslash escaped (see above) then a quote either
-            // unsets `in_quote` or is escaped by another quote.
-            QUOTE if in_quotes => match peek() {
+            // unsets `in_quotes` or is escaped by another quote.
+            QUOTE if in_quotes => match builder.peek() {
                 // Two consecutive quotes when `in_quotes` produces one literal quote.
                 Some(QUOTE) => {
-                    cur.borrow_mut().push(QUOTE);
-                    *end_index.borrow_mut()+=1;
+                    builder.next(); // consume the peeked quote
+                    builder.get_current().push(QUOTE);
                 }
                 // Otherwise set `in_quotes`.
                 Some(_) => in_quotes = false,
-                // The end of the command line.
-                // Push `cur` even if empty, which we do by breaking while `in_quotes` is still set.
-                None => {
-                    *end_index.borrow_mut()+=1;
-                    break
-                }
+                // The end of the command line, so this is the cycle/pass of the loop.
+                // After the loop, the current argument gets pushed, because `in_quotes` is true.
+                None => {}
             },
-            // If not `in_quotes` and not BACKSLASH escaped (see above) then a quote sets `in_quote`.
+            // If not `in_quotes` and not BACKSLASH escaped (see above) then a quote sets `in_quotes`.
             QUOTE => in_quotes = true,
             // Everything else is always taken literally.
-            _ => cur.borrow_mut().push(w),
+            _ => builder.get_current().push(w),
         }
     }
     // Push the final argument, if any.
-    if !cur.borrow().is_empty() || in_quotes {
-        push_cur();
+    if !builder.get_current().is_empty() || in_quotes {
+        builder.push_arg();
     }
-    ret_val
+    builder.get_arg_list()
 }
 
 fn main() {
