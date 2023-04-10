@@ -12,10 +12,10 @@ use std::{
     time,
 };
 
-use windows::{
-    core::PWSTR,
-    Win32::System::Environment,
-};
+//use windows::{
+//    core::PWSTR,
+//    Win32::System::Environment,
+//};
 
 
 struct Arg<'lifetime_of_slice> {
@@ -211,16 +211,31 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
     builder.get_arg_list()
 }
 
-fn main() {
-    let cmdline_ptr:PWSTR;
-    let cmdline: &[u16] = unsafe {
-        cmdline_ptr = Environment::GetCommandLineW();
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetCommandLineW() -> *mut u16;
+}
+
+fn get_command_line() -> Result<&'static [u16], &'static str> {
+    unsafe {
+        let cmdline_ptr : *mut u16 = GetCommandLineW();
         if cmdline_ptr.is_null() {
-            println!("couldn't get commandline");
-            return;
+            return Err("Couldn't get commandline");
         }
-        cmdline_ptr.as_wide()
-    };
+
+        let mut len : usize = 0usize;
+        let mut moving_ptr : *mut u16 = cmdline_ptr;
+        while 0u16 != *moving_ptr {
+            len = len.checked_add(1usize).ok_or("Interger Overflow")?;
+            moving_ptr = moving_ptr.add(1);
+        }
+        Ok(std::slice::from_raw_parts::<'static, u16>(cmdline_ptr, len))
+    }
+}
+
+
+fn main() -> Result<(), &'static str>{
+    let cmdline: &'static [u16] = get_command_line()?;
     let parsed_args_list = parse_lp_cmd_line(cmdline, true);
 
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
@@ -254,13 +269,11 @@ fn main() {
     if false {
         loop {
             print!(".");
-            match io::stdout().flush() {
-                Err(..) => {println!("Cannot flush!"); return;},
-                Ok(()) => {},
-            };
+            io::stdout().flush().map_err(|_| "Failed to flush stdout")?;
             thread::sleep(time::Duration::from_millis(2000));
         }
     }
+    Ok(())
 }
 
 
