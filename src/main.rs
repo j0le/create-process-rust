@@ -1,16 +1,15 @@
 
 mod wstr;
 
-use crate::wstr::WStrUnits;
+//use crate::wstr::WStrUnits;
 
 use std::{
     ffi::OsString,
     io,
     io::Write,
     os::windows::ffi::OsStringExt,
-    thread, 
-    time, 
-    num::NonZeroU16
+    thread,
+    time,
 };
 
 use windows::{
@@ -18,19 +17,27 @@ use windows::{
     Win32::System::Environment,
 };
 
-// from ~/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust/library/std/src/sys/windows/args.rs
-const fn non_zero_u16(n: u16) -> NonZeroU16 {
-    match NonZeroU16::new(n) {
-        Some(n) => n,
-        None => panic!("called `unwrap` on a `None` value"),
-    }
-}
 
-struct Arg {
+struct Arg<'lifetime_of_slice> {
     arg: OsString,
     range: std::ops::Range<usize>,
+    raw: &'lifetime_of_slice[u16],
 }
 
+
+fn advance_while<P: FnMut(u16) -> bool>(index: &mut usize, slice:&[u16], mut predicate: P) -> usize {
+    let mut counter = 0;
+    while *index < slice.len() {
+        if !predicate(slice[*index]) {
+            break;
+        }
+        *index += 1;
+        counter += 1;
+    }
+    counter
+}
+
+// from ~/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust/library/std/src/sys/windows/args.rs
 /// Implements the Windows command-line argument parsing algorithm.
 ///
 /// Microsoft's documentation for the Windows CLI argument format can be found at
@@ -51,27 +58,30 @@ struct Arg {
 /// This function was tested for equivalence to the C/C++ parsing rules using an
 /// extensive test suite available at
 /// <https://github.com/ChrisDenton/winarg/tree/std>.
-fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_special: bool) -> Vec<Arg> {
-    const BACKSLASH: NonZeroU16 = non_zero_u16(b'\\' as u16);
-    const QUOTE: NonZeroU16 = non_zero_u16(b'"' as u16);
-    const TAB: NonZeroU16 = non_zero_u16(b'\t' as u16);
-    const SPACE: NonZeroU16 = non_zero_u16(b' ' as u16);
+fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec<Arg<'a>> {
+    const BACKSLASH: u16 = b'\\' as u16;
+    const QUOTE: u16 = b'"' as u16;
+    const TAB: u16 = b'\t' as u16;
+    const SPACE: u16 = b' ' as u16;
 
-    let mut ret_val = Vec::<Arg>::new();
+    let mut ret_val = Vec::<Arg<'a>>::new();
     // If the cmd line pointer is null or it points to an empty string then
     // return an empty vector.
-    if lp_cmd_line.as_ref().and_then(|cmd| cmd.peek()).is_none() {
+    if cmd_line.is_empty() {
         return ret_val;
     }
-    let mut code_units = lp_cmd_line.unwrap();
 
     // The executable name at the beginning is special.
     let mut in_quotes = false;
     let mut cur = Vec::new();
-    let mut index = 0; // code_units.get_index();
+    let mut index = 0;
     let mut end_index = index;
     if handle_first_special {
-        while let Some(w) = {end_index+=1; code_units.next()} {
+        while let Some(w) = {
+            let opt_w = cmd_line.get(end_index).map(|w:&u16| *w);
+            end_index += 1;
+            opt_w
+        } {
             match w {
                 // A quote mark always toggles `in_quotes` no matter what because
                 // there are no escape characters when parsing the executable name.
@@ -79,15 +89,17 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
                 // If not `in_quotes` then whitespace ends argv[0].
                 SPACE | TAB if !in_quotes => break,
                 // In all other cases the code unit is taken literally.
-                _ => cur.push(w.get()),
+                _ => cur.push(w),
             }
         }
+        let range = index..(end_index-1);
         ret_val.push(Arg{
             arg: OsString::from_wide(&cur),
-            range: index..(end_index.checked_sub(1).unwrap()),
+            range:range.clone(),
+            raw: &cmd_line[range],
         });
         // Skip whitespace.
-        end_index += code_units.advance_while(|w| w == SPACE || w == TAB);
+        advance_while(&mut end_index, cmd_line, |w| w == SPACE || w == TAB);
     }
 
     // Parse the arguments according to these rules:
@@ -105,67 +117,71 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
     cur.truncate(0);
     in_quotes = false;
     index = end_index;
-    while let Some(w) = {end_index+=1; code_units.next()} {
+    while let Some(w) = {
+        let opt_w = cmd_line.get(end_index).map(|w:&u16| *w);
+        end_index += 1;
+        opt_w
+    } {
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
+                let range = index..(end_index-1);
                 ret_val.push(Arg{
                     arg: OsString::from_wide(&cur[..]),
-                    range: index..(end_index.checked_sub(1).unwrap()),
+                    range:range.clone(),
+                    raw: &cmd_line[range],
                 });
                 cur.truncate(0);
 
                 index = end_index;
                 // Skip whitespace.
-                end_index += code_units.advance_while(|w| w == SPACE || w == TAB);
+                advance_while(&mut end_index, cmd_line, |w| w == SPACE || w == TAB);
             }
             // Backslashes can escape quotes or backslashes but only if consecutive backslashes are followed by a quote.
             BACKSLASH => {
-                let backslash_count = {
-                    let temp = code_units.advance_while(|w| w == BACKSLASH);
-                    end_index += temp;
-                    temp + 1
-                };
-                if code_units.peek() == Some(QUOTE) {
-                    cur.extend(std::iter::repeat(BACKSLASH.get()).take(backslash_count / 2));
+                let backslash_count = advance_while(&mut end_index, cmd_line, |w| w == BACKSLASH) + 1;
+                if cmd_line.get(end_index).map(|w:&u16| *w) == Some(QUOTE) {
+                    cur.extend(std::iter::repeat(BACKSLASH).take(backslash_count / 2));
                     // The quote is escaped if there are an odd number of backslashes.
                     if backslash_count % 2 == 1 {
-                        {end_index+=1; code_units.next()};
-                        cur.push(QUOTE.get());
+                        end_index+=1;
+                        cur.push(QUOTE);
                     }
                 } else {
                     // If there is no quote on the end then there is no escaping.
-                    cur.extend(std::iter::repeat(BACKSLASH.get()).take(backslash_count));
+                    cur.extend(std::iter::repeat(BACKSLASH).take(backslash_count));
                 }
             }
             // If `in_quotes` and not backslash escaped (see above) then a quote either
             // unsets `in_quote` or is escaped by another quote.
-            QUOTE if in_quotes => match code_units.peek() {
+            QUOTE if in_quotes => match cmd_line.get(end_index).map(|w:&u16| *w) {
                 // Two consecutive quotes when `in_quotes` produces one literal quote.
                 Some(QUOTE) => {
-                    cur.push(QUOTE.get());
-                    {end_index+=1; code_units.next()};
+                    cur.push(QUOTE);
+                    end_index+=1;
                 }
                 // Otherwise set `in_quotes`.
                 Some(_) => in_quotes = false,
                 // The end of the command line.
                 // Push `cur` even if empty, which we do by breaking while `in_quotes` is still set.
                 None => {
-                    {end_index+=1; code_units.next()};
+                    end_index+=1;
                     break
                 }
             },
             // If not `in_quotes` and not BACKSLASH escaped (see above) then a quote sets `in_quote`.
             QUOTE => in_quotes = true,
             // Everything else is always taken literally.
-            _ => cur.push(w.get()),
+            _ => cur.push(w),
         }
     }
     // Push the final argument, if any.
     if !cur.is_empty() || in_quotes {
+        let range = index..(end_index - 1);
         ret_val.push(Arg{
             arg: OsString::from_wide(&cur[..]),
-            range: index..(end_index.checked_sub(1).unwrap()),
+            range:range.clone(),
+            raw: &cmd_line[range]
         });
     }
     ret_val
@@ -173,18 +189,15 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
 
 fn main() {
     let cmdline_ptr:PWSTR;
-    let (wstr_iter,cmdline): (Option<WStrUnits>, &[u16]) = unsafe {
+    let cmdline: &[u16] = unsafe {
         cmdline_ptr = Environment::GetCommandLineW();
         if cmdline_ptr.is_null() {
             println!("couldn't get commandline");
             return;
         }
-        (
-            WStrUnits::new(cmdline_ptr.as_ptr()),
-            cmdline_ptr.as_wide(),
-        )
+        cmdline_ptr.as_wide()
     };
-    let parsed_args_list = parse_lp_cmd_line(wstr_iter, true);
+    let parsed_args_list = parse_lp_cmd_line(cmdline, true);
 
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
     let cmdline_u8 = match cmdline_os_string.to_str() {
@@ -202,16 +215,15 @@ fn main() {
               »{}«\n", cmdline_u8);
 
     let mut n : usize = 0;
-    for Arg {arg, range} in parsed_args_list {
+    for Arg {arg, range, raw} in parsed_args_list {
         let (lossless_or_lossy, arg) = match arg.to_str() {
             Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
             None      => ("lossy:   ", arg.to_string_lossy()),
         };
-        let x = &cmdline[range.clone()];
-        let x : OsString = OsStringExt::from_wide(&x);
-        let x = x.to_string_lossy();
+        let raw = OsString::from_wide(raw);
+        let raw = raw.to_string_lossy();
         println!("Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
-                 n, range.start, range.end, lossless_or_lossy, arg, x);
+                 n, range.start, range.end, lossless_or_lossy, arg, raw);
         n += 1;
     }
 
