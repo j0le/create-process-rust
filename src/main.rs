@@ -71,17 +71,19 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
         return ret_val;
     }
 
+    let next = |index:&mut usize, slice:&[u16]| -> Option<u16> {
+        let opt_w = slice.get(*index).map(|w:&u16| *w);
+        *index += 1;
+        opt_w
+    };
+
     // The executable name at the beginning is special.
     let mut in_quotes = false;
     let mut cur = Vec::new();
     let mut index = 0;
     let mut end_index = index;
     if handle_first_special {
-        while let Some(w) = {
-            let opt_w = cmd_line.get(end_index).map(|w:&u16| *w);
-            end_index += 1;
-            opt_w
-        } {
+        while let Some(w) = next(&mut end_index, cmd_line) {
             match w {
                 // A quote mark always toggles `in_quotes` no matter what because
                 // there are no escape characters when parsing the executable name.
@@ -117,11 +119,7 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
     cur.truncate(0);
     in_quotes = false;
     index = end_index;
-    while let Some(w) = {
-        let opt_w = cmd_line.get(end_index).map(|w:&u16| *w);
-        end_index += 1;
-        opt_w
-    } {
+    while let Some(w) = next(&mut end_index, cmd_line) {
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
