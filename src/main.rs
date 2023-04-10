@@ -8,7 +8,6 @@ use std::{
     io,
     io::Write,
     os::windows::ffi::OsStringExt,
-    os::windows::ffi::OsStrExt,
     thread, 
     time, 
     num::NonZeroU16
@@ -165,28 +164,29 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
 }
 
 fn main() {
-
-    let (wstr_iter,cmdline): (Option<WStrUnits>, OsString) = unsafe {
-        let cmdline_ptr:PWSTR = Environment::GetCommandLineW();
+    let cmdline_ptr:PWSTR;
+    let (wstr_iter,cmdline): (Option<WStrUnits>, &[u16]) = unsafe {
+        cmdline_ptr = Environment::GetCommandLineW();
         if cmdline_ptr.is_null() {
             println!("couldn't get commandline");
             return;
         }
         (
             WStrUnits::new(cmdline_ptr.as_ptr()),
-            OsStringExt::from_wide(cmdline_ptr.as_wide()),
+            cmdline_ptr.as_wide(),
         )
     };
     let parsed_args_list = parse_lp_cmd_line(wstr_iter, true);
 
-    let cmdline_u8 = match cmdline.to_str() {
+    let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
+    let cmdline_u8 = match cmdline_os_string.to_str() {
         Some(str) => {
             println!("Die Kommandozeile konnte verlustfrei konvertiert werden.");
             std::borrow::Cow::from(str)
         },
         None => {
             println!("Die Kommandozeile muste verlustbehaftet konvertiert werden.");
-            cmdline.to_string_lossy()
+            cmdline_os_string.to_string_lossy()
         }
     };
     println!("Die command line sieht wie folgt aus, \
@@ -199,8 +199,7 @@ fn main() {
             Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
             None      => ("lossy:   ", arg.to_string_lossy()),
         };
-        let x = OsStrExt::encode_wide(cmdline.as_os_str()).collect::<Vec<u16>>();
-        let x = &(&x)[range.clone()];
+        let x = &cmdline[range.clone()];
         let x : OsString = OsStringExt::from_wide(&x);
         let x = x.to_string_lossy();
         println!("Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
