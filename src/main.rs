@@ -1,6 +1,8 @@
 
 use std::{
+    ffi::OsStr,
     ffi::OsString,
+    fmt::{self, Formatter, Display},
     io,
     io::Write,
     os::windows::ffi::OsStringExt,
@@ -16,6 +18,19 @@ struct Arg<'lifetime_of_slice> {
     arg: OsString,
     range: std::ops::Range<usize>,
     raw: &'lifetime_of_slice[u16],
+}
+
+impl fmt::Display for Arg<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (lossless_or_lossy, arg) = match self.arg.to_str() {
+            Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
+            None      => ("lossy:   ", self.arg.to_string_lossy()),
+        };
+        let raw = OsString::from_wide(self.raw);
+        let raw = raw.to_string_lossy();
+        write!(f, "Argument, range {:3} .. {:3}, {} »{}«, raw: »{}«",
+                 self.range.start, self.range.end, lossless_or_lossy, arg, raw)
+    }
 }
 
 
@@ -222,6 +237,46 @@ fn get_command_line() -> Result<&'static [u16], &'static str> {
     }
 }
 
+enum Program{
+    ProgramUnInit,
+    ProgramStr(OsString),
+    ProgramNull,
+    ProgramFromCmdLine,
+}
+
+fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<(),String> {
+    let opt_program : &OsStr = OsStr::new("--program");
+    let opt_program_from_cmd_line : &OsStr = OsStr::new("--program-from-cmd-line");
+    let opt_cmd_line_in_arg : &OsStr = OsStr::new("--cmd-line-in-arg");
+    let opt_cmd_line_is_rest : &OsStr = OsStr::new("--cmd-line-is-rest");
+
+    let mut program = Program::ProgramUnInit;
+    let mut args_iter = args.iter();
+    // skip first/zerothed argument
+    if let None = args_iter.next() {
+        return Ok(());
+    }
+    while let Some(arg) = args_iter.next() {
+        match arg.arg.as_os_str() {
+            x if x == opt_program => {
+                println!("DEBUG: opt program");
+            },
+            x if x == opt_program_from_cmd_line => {
+                println!("DEBUG: opt program from cmd line");
+            },
+            x if x == opt_cmd_line_in_arg => {
+                println!("DEBUG: opt cmd line in arg");
+            },
+            x if x == opt_cmd_line_is_rest => {
+                println!("DEBUG: opt cmd line is rest");
+            },
+            _other => {
+                return Err(format!("unknown option:\n  {}", &arg));
+            }
+        }
+    }
+    Ok(())
+}
 
 fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = get_command_line()?;
@@ -243,7 +298,7 @@ fn main() -> Result<(), String>{
               »{}«\n", cmdline_u8);
 
     let mut n : usize = 0;
-    for Arg {arg, range, raw} in parsed_args_list {
+    for Arg {arg, range, raw} in &parsed_args_list {
         let (lossless_or_lossy, arg) = match arg.to_str() {
             Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
             None      => ("lossy:   ", arg.to_string_lossy()),
@@ -254,6 +309,15 @@ fn main() -> Result<(), String>{
                  n, range.start, range.end, lossless_or_lossy, arg, raw);
         n += 1;
     }
+
+    println!("\n---------------\n");
+    match get_options(cmdline, &parsed_args_list){
+        Ok(()) => {},
+        Err(msg) => {
+            println!("{}",msg);
+            return Err("bad option".to_owned());
+        },
+    };
 
     if false {
         loop {
@@ -283,12 +347,13 @@ fn main() -> Result<(), String>{
 // We do these:
 // --program <program>
 // --program=<program>
-// --program-is-null
+// --program-is-null                 // not supported right now
 // --program-from-cmd-line
 // --cmd-line-in-arg <commandline>
 // --cmd-line-in-arg=<commandline>
 // --cmd-line-is-rest <args>...
-// --prepend-program
+// --prepend-program                 // right now this is always true
 //
 // For later
 // --cmd-line-from-stdin
+
