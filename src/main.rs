@@ -12,11 +12,7 @@ use std::{
     time,
 };
 
-//use windows::{
-//    core::PWSTR,
-//    Win32::System::Environment,
-//};
-
+use windows::Win32::System::Environment;
 
 struct Arg<'lifetime_of_slice> {
     arg: OsString,
@@ -211,14 +207,9 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
     builder.get_arg_list()
 }
 
-#[link(name = "kernel32")]
-extern "system" {
-    fn GetCommandLineW() -> *mut u16;
-}
-
 fn get_command_line() -> Result<&'static [u16], &'static str> {
     unsafe {
-        let cmdline_ptr : *mut u16 = GetCommandLineW();
+        let cmdline_ptr : *mut u16 = Environment::GetCommandLineW().0;
         if cmdline_ptr.is_null() {
             return Err("Couldn't get commandline");
         }
