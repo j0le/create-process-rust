@@ -225,14 +225,16 @@ fn main() {
         n += 1;
     }
 
-    //loop {
-    //    print!(".");
-    //    match io::stdout().flush() {
-    //        Err(..) => {println!("Cannot flush!"); return;},
-    //        Ok(()) => {},
-    //    };
-    //    thread::sleep(time::Duration::from_millis(2000));
-    //}
+    if false {
+        loop {
+            print!(".");
+            match io::stdout().flush() {
+                Err(..) => {println!("Cannot flush!"); return;},
+                Ok(()) => {},
+            };
+            thread::sleep(time::Duration::from_millis(2000));
+        }
+    }
 }
 
 
