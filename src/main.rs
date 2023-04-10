@@ -12,6 +12,9 @@ use std::{
     time,
 };
 
+use core::cell::*;
+use core::ops::Deref;
+
 use windows::{
     core::PWSTR,
     Win32::System::Environment,
@@ -79,11 +82,25 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
 
     // The executable name at the beginning is special.
     let mut in_quotes = false;
-    let mut cur = Vec::new();
-    let mut index = 0;
-    let mut end_index = index;
+    let cur : RefCell<Vec<u16>> = Vec::new().into();
+    let index : RefCell<usize> = RefCell::new(0);
+    let end_index : RefCell<usize> = RefCell::new(0);
+
+    let mut push_cur = || {
+        let index : usize = *index.borrow();
+        let end_index : usize = *end_index.borrow();
+        let range = index..(end_index-1);
+        let mut cur = cur.borrow_mut();
+        ret_val.push(Arg{
+            arg: OsString::from_wide(cur.deref()),
+            range:range.clone(),
+            raw: &cmd_line[range],
+        });
+        cur.truncate(0);
+    };
+
     if handle_first_special {
-        while let Some(w) = next(&mut end_index, cmd_line) {
+        while let Some(w) = next(&mut end_index.borrow_mut(), cmd_line) {
             match w {
                 // A quote mark always toggles `in_quotes` no matter what because
                 // there are no escape characters when parsing the executable name.
@@ -91,17 +108,12 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
                 // If not `in_quotes` then whitespace ends argv[0].
                 SPACE | TAB if !in_quotes => break,
                 // In all other cases the code unit is taken literally.
-                _ => cur.push(w),
+                _ => cur.borrow_mut().push(w),
             }
         }
-        let range = index..(end_index-1);
-        ret_val.push(Arg{
-            arg: OsString::from_wide(&cur),
-            range:range.clone(),
-            raw: &cmd_line[range],
-        });
+        push_cur();
         // Skip whitespace.
-        advance_while(&mut end_index, cmd_line, |w| w == SPACE || w == TAB);
+        advance_while(&mut end_index.borrow_mut(), cmd_line, |w| w == SPACE || w == TAB);
     }
 
     // Parse the arguments according to these rules:
@@ -116,71 +128,73 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
     // * Backslashes not followed by a quote are all taken literally.
     // * If `in_quotes` then a quote can also be escaped using another quote
     // (i.e. two consecutive quotes become one literal quote).
-    cur.truncate(0);
+    {cur.borrow_mut().truncate(0);}
     in_quotes = false;
-    index = end_index;
-    while let Some(w) = next(&mut end_index, cmd_line) {
+    *index.borrow_mut() = *end_index.borrow();
+    {println!("end_index: {}", *end_index.borrow());}
+    while let Some(w) = { 
+        let mut borrow : RefMut<usize> = end_index.borrow_mut();
+        let ret = next(&mut borrow, cmd_line);
+        drop(borrow);
+        ret
+    } {
+        println!("end_index: {}", *end_index.borrow());
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
-                let range = index..(end_index-1);
-                ret_val.push(Arg{
-                    arg: OsString::from_wide(&cur[..]),
-                    range:range.clone(),
-                    raw: &cmd_line[range],
-                });
-                cur.truncate(0);
+                push_cur();
 
-                index = end_index;
+                {*index.borrow_mut() = *end_index.borrow();}
                 // Skip whitespace.
-                advance_while(&mut end_index, cmd_line, |w| w == SPACE || w == TAB);
+                advance_while(&mut end_index.borrow_mut(), cmd_line, |w| w == SPACE || w == TAB);
             }
             // Backslashes can escape quotes or backslashes but only if consecutive backslashes are followed by a quote.
             BACKSLASH => {
-                let backslash_count = advance_while(&mut end_index, cmd_line, |w| w == BACKSLASH) + 1;
-                if cmd_line.get(end_index).map(|w:&u16| *w) == Some(QUOTE) {
-                    cur.extend(std::iter::repeat(BACKSLASH).take(backslash_count / 2));
+                let backslash_count = advance_while(&mut end_index.borrow_mut(), cmd_line, |w| w == BACKSLASH) + 1;
+                if cmd_line.get(*end_index.borrow()).map(|w:&u16| *w) == Some(QUOTE) {
+                    cur.borrow_mut().extend(std::iter::repeat(BACKSLASH).take(backslash_count / 2));
                     // The quote is escaped if there are an odd number of backslashes.
                     if backslash_count % 2 == 1 {
-                        end_index+=1;
-                        cur.push(QUOTE);
+                        *end_index.borrow_mut() +=1;
+                        cur.borrow_mut().push(QUOTE);
                     }
                 } else {
                     // If there is no quote on the end then there is no escaping.
-                    cur.extend(std::iter::repeat(BACKSLASH).take(backslash_count));
+                    cur.borrow_mut().extend(std::iter::repeat(BACKSLASH).take(backslash_count));
                 }
             }
             // If `in_quotes` and not backslash escaped (see above) then a quote either
             // unsets `in_quote` or is escaped by another quote.
-            QUOTE if in_quotes => match cmd_line.get(end_index).map(|w:&u16| *w) {
+            QUOTE if in_quotes => match {
+                let i : Ref<usize> = end_index.borrow();
+                let ii : usize = *i;
+                let ret = cmd_line.get(ii).map(|w:&u16| *w);
+                drop(i);
+                ret
+            } {
                 // Two consecutive quotes when `in_quotes` produces one literal quote.
                 Some(QUOTE) => {
-                    cur.push(QUOTE);
-                    end_index+=1;
+                    cur.borrow_mut().push(QUOTE);
+                    *end_index.borrow_mut()+=1;
                 }
                 // Otherwise set `in_quotes`.
                 Some(_) => in_quotes = false,
                 // The end of the command line.
                 // Push `cur` even if empty, which we do by breaking while `in_quotes` is still set.
                 None => {
-                    end_index+=1;
+                    *end_index.borrow_mut()+=1;
                     break
                 }
             },
             // If not `in_quotes` and not BACKSLASH escaped (see above) then a quote sets `in_quote`.
             QUOTE => in_quotes = true,
             // Everything else is always taken literally.
-            _ => cur.push(w),
+            _ => cur.borrow_mut().push(w),
         }
     }
     // Push the final argument, if any.
-    if !cur.is_empty() || in_quotes {
-        let range = index..(end_index - 1);
-        ret_val.push(Arg{
-            arg: OsString::from_wide(&cur[..]),
-            range:range.clone(),
-            raw: &cmd_line[range]
-        });
+    if !cur.borrow().is_empty() || in_quotes {
+        push_cur();
     }
     ret_val
 }
