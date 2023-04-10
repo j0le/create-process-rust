@@ -68,9 +68,10 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
     // The executable name at the beginning is special.
     let mut in_quotes = false;
     let mut cur = Vec::new();
-    let mut index = code_units.get_index();
+    let mut index = 0; // code_units.get_index();
+    let mut end_index = index;
     if handle_first_special {
-        for w in &mut code_units {
+        while let Some(w) = {end_index+=1; code_units.next()} {
             match w {
                 // A quote mark always toggles `in_quotes` no matter what because
                 // there are no escape characters when parsing the executable name.
@@ -83,10 +84,10 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
         }
         ret_val.push(Arg{
             arg: OsString::from_wide(&cur),
-            range: index..(code_units.get_index().checked_sub(1).unwrap()),
+            range: index..(end_index.checked_sub(1).unwrap()),
         });
         // Skip whitespace.
-        code_units.advance_while(|w| w == SPACE || w == TAB);
+        end_index += code_units.advance_while(|w| w == SPACE || w == TAB);
     }
 
     // Parse the arguments according to these rules:
@@ -103,29 +104,33 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
     // (i.e. two consecutive quotes become one literal quote).
     cur.truncate(0);
     in_quotes = false;
-    index = code_units.get_index();
-    while let Some(w) = code_units.next() {
+    index = end_index;
+    while let Some(w) = {end_index+=1; code_units.next()} {
         match w {
             // If not `in_quotes`, a space or tab ends the argument.
             SPACE | TAB if !in_quotes => {
                 ret_val.push(Arg{
                     arg: OsString::from_wide(&cur[..]),
-                    range: index..(code_units.get_index().checked_sub(1).unwrap()),
+                    range: index..(end_index.checked_sub(1).unwrap()),
                 });
                 cur.truncate(0);
 
+                index = end_index;
                 // Skip whitespace.
-                code_units.advance_while(|w| w == SPACE || w == TAB);
-                index = code_units.get_index();
+                end_index += code_units.advance_while(|w| w == SPACE || w == TAB);
             }
             // Backslashes can escape quotes or backslashes but only if consecutive backslashes are followed by a quote.
             BACKSLASH => {
-                let backslash_count = code_units.advance_while(|w| w == BACKSLASH) + 1;
+                let backslash_count = {
+                    let temp = code_units.advance_while(|w| w == BACKSLASH);
+                    end_index += temp;
+                    temp + 1
+                };
                 if code_units.peek() == Some(QUOTE) {
                     cur.extend(std::iter::repeat(BACKSLASH.get()).take(backslash_count / 2));
                     // The quote is escaped if there are an odd number of backslashes.
                     if backslash_count % 2 == 1 {
-                        code_units.next();
+                        {end_index+=1; code_units.next()};
                         cur.push(QUOTE.get());
                     }
                 } else {
@@ -139,14 +144,14 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
                 // Two consecutive quotes when `in_quotes` produces one literal quote.
                 Some(QUOTE) => {
                     cur.push(QUOTE.get());
-                    code_units.next();
+                    {end_index+=1; code_units.next()};
                 }
                 // Otherwise set `in_quotes`.
                 Some(_) => in_quotes = false,
                 // The end of the command line.
                 // Push `cur` even if empty, which we do by breaking while `in_quotes` is still set.
                 None => {
-                    code_units.next();
+                    {end_index+=1; code_units.next()};
                     break
                 }
             },
@@ -160,7 +165,7 @@ fn parse_lp_cmd_line<'a>( lp_cmd_line: Option<WStrUnits<'a>>, handle_first_speci
     if !cur.is_empty() || in_quotes {
         ret_val.push(Arg{
             arg: OsString::from_wide(&cur[..]),
-            range: index..(code_units.get_index().checked_sub(1).unwrap()),
+            range: index..(end_index.checked_sub(1).unwrap()),
         });
     }
     ret_val

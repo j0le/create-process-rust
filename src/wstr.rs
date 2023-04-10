@@ -44,9 +44,9 @@ impl WStrUnits<'_> {
         counter
     }
 
-    pub fn get_index(&self) -> usize {
-        self.index
-    }
+    //pub fn get_index(&self) -> usize {
+    //    self.index
+    //}
 }
 
 impl Iterator for WStrUnits<'_> {
