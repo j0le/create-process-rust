@@ -18,6 +18,7 @@ struct Arg<'lifetime_of_slice> {
     arg: OsString,
     range: std::ops::Range<usize>,
     raw: &'lifetime_of_slice[u16],
+    number: usize,
 }
 
 impl fmt::Display for Arg<'_> {
@@ -28,8 +29,8 @@ impl fmt::Display for Arg<'_> {
         };
         let raw = OsString::from_wide(self.raw);
         let raw = raw.to_string_lossy();
-        write!(f, "Argument, range {:3} .. {:3}, {} »{}«, raw: »{}«",
-                 self.range.start, self.range.end, lossless_or_lossy, arg, raw)
+        write!(f, "Argument {}, range {}..{}, {} »{}«, raw: »{}«",
+                 self.number, self.range.start, self.range.end, lossless_or_lossy, arg, raw)
     }
 }
 
@@ -60,6 +61,7 @@ impl<'a> ArgListBuilder<'a> {
             arg: OsString::from_wide(&self.cur),
             range:range.clone(),
             raw: &self.cmd_line[range],
+            number: self.arg_list.len(),
         });
         self.cur.truncate(0);
     }
@@ -306,7 +308,7 @@ fn main() -> Result<(), String>{
               »{}«\n", cmdline_u8);
 
     let mut n : usize = 0;
-    for Arg {arg, range, raw} in &parsed_args_list {
+    for Arg {arg, range, raw, ..} in &parsed_args_list {
         let (lossless_or_lossy, arg) = match arg.to_str() {
             Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
             None      => ("lossy:   ", arg.to_string_lossy()),
