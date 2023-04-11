@@ -260,6 +260,14 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<(),String> {
         match arg.arg.as_os_str() {
             x if x == opt_program => {
                 println!("DEBUG: opt program");
+                match &program {
+                    Program::ProgramUnInit => {},
+                    _ => return Err(format!("bad option, program is already initilaized:\n  {}", &arg)),
+                }
+                match args_iter.next() {
+                    Some(next_arg) => program = Program::ProgramStr(next_arg.arg.clone()),
+                    None => return Err(format!("missing argument for option:\n  {}", &arg)),
+                }
             },
             x if x == opt_program_from_cmd_line => {
                 println!("DEBUG: opt program from cmd line");
