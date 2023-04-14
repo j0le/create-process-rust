@@ -239,53 +239,87 @@ fn get_command_line() -> Result<&'static [u16], &'static str> {
     }
 }
 
-enum Program{
-    ProgramUnInit,
-    ProgramStr(OsString),
-    ProgramNull,
-    ProgramFromCmdLine,
+enum ProgramOpt{
+    Str(OsString),
+    Null,
+    FromCmdLine,
 }
 
-fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<(),String> {
+struct Options{
+    program : ProgramOpt,
+    cmdline : OsString,
+}
+
+fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<Options,String> {
     let opt_program : &OsStr = OsStr::new("--program");
     let opt_program_from_cmd_line : &OsStr = OsStr::new("--program-from-cmd-line");
+    let opt_program_is_null : &OsStr = OsStr::new("--program-is-null");
     let opt_cmd_line_in_arg : &OsStr = OsStr::new("--cmd-line-in-arg");
     let opt_cmd_line_is_rest : &OsStr = OsStr::new("--cmd-line-is-rest");
 
-    let mut program = Program::ProgramUnInit;
+    let mut program : Option<ProgramOpt> = None;
+    let mut cmdline_opt : Option<OsString> = None;
     let mut args_iter = args.iter();
+
     // skip first/zerothed argument
-    if let None = args_iter.next() {
-        return Ok(());
-    }
+    args_iter.next();
+
     while let Some(arg) = args_iter.next() {
         match arg.arg.as_os_str() {
             x if x == opt_program => {
                 println!("DEBUG: opt program");
-                match &program {
-                    Program::ProgramUnInit => {},
-                    _ => return Err(format!("bad option, program is already initilaized:\n  {}", &arg)),
+                if program.is_some() {
+                    return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
                 }
                 match args_iter.next() {
-                    Some(next_arg) => program = Program::ProgramStr(next_arg.arg.clone()),
+                    Some(next_arg) => program = Some(ProgramOpt::Str(next_arg.arg.clone())),
                     None => return Err(format!("missing argument for option:\n  {}", &arg)),
                 }
             },
             x if x == opt_program_from_cmd_line => {
                 println!("DEBUG: opt program from cmd line");
+                if program.is_some() {
+                    return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
+                }
+                program = Some(ProgramOpt::FromCmdLine);
+            },
+            x if x == opt_program_is_null => {
+                println!("DEBUG: opt program is null");
+                if program.is_some() {
+                    return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
+                }
+                program = Some(ProgramOpt::Null);
             },
             x if x == opt_cmd_line_in_arg => {
                 println!("DEBUG: opt cmd line in arg");
+                if cmdline_opt.is_some() {
+                    return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
+                }
+                match args_iter.next() {
+                    Some(next_arg) => cmdline_opt = Some(next_arg.arg.clone()),
+                    None => return Err(format!("missing argument for option:\n  {}", &arg)),
+                }
             },
             x if x == opt_cmd_line_is_rest => {
                 println!("DEBUG: opt cmd line is rest");
+                if cmdline_opt.is_some() {
+                    return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
+                }
+                let rest : &[u16] = &cmd_line[(arg.range.end)..];
+                cmdline_opt = Some(OsString::from_wide(rest));
+                break;
             },
             _other => {
                 return Err(format!("unknown option:\n  {}", &arg));
             }
         }
     }
-    Ok(())
+    match (program, cmdline_opt) {
+        (None, None) => Err("Neither program nor cmd line were specified".to_owned()),
+        (None, _) => Err("program was not specied".to_owned()),
+        (_, None) => Err("cmd line was not specied".to_owned()),
+        (Some(program), Some(cmdline)) => Ok(Options { program, cmdline, }),
+    }
 }
 
 fn main() -> Result<(), String>{
@@ -322,7 +356,7 @@ fn main() -> Result<(), String>{
 
     println!("\n---------------\n");
     match get_options(cmdline, &parsed_args_list){
-        Ok(()) => {},
+        Ok(_) => {},
         Err(msg) => {
             println!("{}",msg);
             return Err("bad option".to_owned());
