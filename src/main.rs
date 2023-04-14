@@ -239,12 +239,14 @@ fn get_command_line() -> Result<&'static [u16], &'static str> {
     }
 }
 
+#[derive(Debug)]
 enum ProgramOpt{
     Str(OsString),
     Null,
     FromCmdLine,
 }
 
+#[derive(Debug)]
 struct Options{
     program : ProgramOpt,
     cmdline : OsString,
@@ -356,7 +358,7 @@ fn main() -> Result<(), String>{
 
     println!("\n---------------\n");
     match get_options(cmdline, &parsed_args_list){
-        Ok(_) => {},
+        Ok(opts) => println!("options:\n{:?}", opts),
         Err(msg) => {
             println!("{}",msg);
             return Err("bad option".to_owned());
