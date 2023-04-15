@@ -415,12 +415,13 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
         }
         first_arg = false;
     }
-    match (program, cmdline_opt, print_args) {
-        (None, None, true) => Ok(MainChoice::PrintArgs),
-        (None, None,_) => Err("Neither program nor cmd line were specified".to_owned()),
-        (None, _, _) => Err("program was not specied".to_owned()),
-        (_, None, _) => Err("cmd line was not specied".to_owned()),
-        (Some(program), Some(cmdline), _) =>
+    match (program, cmdline_opt, print_args, first_arg) {
+        (None, None, true, _) => Ok(MainChoice::PrintArgs),
+        (None, None, _, true) => Ok(MainChoice::PrintArgs),
+        (None, None, _, _) => Err("Neither program nor cmd line were specified".to_owned()),
+        (None, _, _, _) => Err("program was not specied".to_owned()),
+        (_, None, _, _) => Err("cmd line was not specied".to_owned()),
+        (Some(program), Some(cmdline), _, _) =>
             Ok(MainChoice::Options(Options{ program, cmdline, print_args, prepend_program, })),
     }
 }
