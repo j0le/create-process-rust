@@ -364,8 +364,8 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 return if first_arg {
                     Ok(MainChoice::PrintArgs)
                 } else {
-                    Err(format!("bad option, \"{}\" may only be the first argument:\n  {}", 
-                                &opt_cmd_line_in_arg.to_string_lossy(), 
+                    Err(format!("bad option, \"{}\" may only be the first argument:\n  {}",
+                                &opt_cmd_line_in_arg.to_string_lossy(),
                                 &arg))
                 };
             }
@@ -469,7 +469,7 @@ fn main() -> Result<(), String>{
             print_args(cmdline, &parsed_args_list);
             return Ok(());
         },
-        Ok(MainChoice::Help) => { 
+        Ok(MainChoice::Help) => {
             print_usage(&arg0_or_default);
             return Ok(());
         },
