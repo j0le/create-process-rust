@@ -373,7 +373,6 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 return Ok(MainChoice::Help);
             },
             x if x == opt_program => {
-                println!("DEBUG: opt program");
                 if program.is_some() {
                     return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
                 }
@@ -383,21 +382,18 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 }
             },
             x if x == opt_program_from_cmd_line => {
-                println!("DEBUG: opt program from cmd line");
                 if program.is_some() {
                     return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
                 }
                 program = Some(ProgramOpt::FromCmdLine);
             },
             x if x == opt_program_is_null => {
-                println!("DEBUG: opt program is null");
                 if program.is_some() {
                     return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
                 }
                 program = Some(ProgramOpt::Null);
             },
             x if x == opt_cmd_line_in_arg => {
-                println!("DEBUG: opt cmd line in arg");
                 if cmdline_opt.is_some() {
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
@@ -407,7 +403,6 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 }
             },
             x if x == opt_cmd_line_is_rest => {
-                println!("DEBUG: opt cmd line is rest");
                 if cmdline_opt.is_some() {
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
