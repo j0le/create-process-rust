@@ -266,14 +266,21 @@ enum MainChoice{
 fn print_usage(arg0 : &str) {
     println!("
              USAGE:
-               {0} [--print-args-only <arg>...]
-               {0} {{ --help | -help | /help | -h | /h | -? | /? }}
-               {0} [--print-args] --prepend-program {{ --program <program> | --program-from-cmd-line | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
+               \"{0}\" [--print-args-only <arg>...]
+               \"{0}\" {{ --help | -help | /help | -h | /h | -? | /? }}
+               \"{0}\" [--print-args] --prepend-program {{ --program <program> | --program-from-cmd-line | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
+
+
+             DESCRIPTION:
+
+               Create a process by calling the Windows function `CreateProcessW`.
+
+               Note: `<arg>...` in the USAGE section means that all following arguments are consumed. That means, they don't get interpreted as options.
 
 
              OPTIONS:
 
-               --help, -help, /help, -h, /h, -?, /? 
+               --help, -help, /help, -h, /h, -?, /?
                  print this help text
 
                --prepend-program
@@ -283,8 +290,14 @@ fn print_usage(arg0 : &str) {
                --print-args
                  Print all the arguments to this program.
 
+               --print-args-only
+                 Print all arguments to this program and do nothing else.
+
                --program <program>
                  Specify the path to the program to start.
+
+               --program-from-cmd-line
+                 Parse the program from the command line given by a `-cmd-line-*` option
 
                --program-is-null
                  The first argument to CreateProcessW is NULL.
