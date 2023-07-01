@@ -281,50 +281,50 @@ enum MainChoice{
 
 fn print_usage(arg0 : &str) {
     println!("
-             USAGE:
-               \"{0}\" [--print-args-only <arg>...]
-               \"{0}\" {{ --help | -help | /help | -h | /h | -? | /? }}
-               \"{0}\" [--print-args] --prepend-program {{ --program <program> | --program-from-cmd-line | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
+USAGE:
+  \"{0}\" [--print-args-only <arg>...]
+  \"{0}\" {{ --help | -help | /help | -h | /h | -? | /? }}
+  \"{0}\" [--print-args] --prepend-program {{ --program <program> | --program-from-cmd-line | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
 
 
-             DESCRIPTION:
+DESCRIPTION:
 
-               Create a process by calling the Windows function `CreateProcessW`.
+  Create a process by calling the Windows function `CreateProcessW`.
 
-               Note: `<arg>...` in the USAGE section means that all following arguments are consumed. That means, they don't get interpreted as options.
+  Note: `<arg>...` in the USAGE section means that all following arguments are consumed. That means, they don't get interpreted as options.
 
 
-             OPTIONS:
+OPTIONS:
 
-               --help, -help, /help, -h, /h, -?, /?
-                 print this help text
+  --help, -help, /help, -h, /h, -?, /?
+    print this help text
 
-               --prepend-program
-                 Prepend the program to the command line.
-                 At the moment, this must always be specified.
+  --prepend-program
+    Prepend the program to the command line.
+    At the moment, this must always be specified.
 
-               --print-args
-                 Print all the arguments to this program.
+  --print-args
+    Print all the arguments to this program.
 
-               --print-args-only
-                 Print all arguments to this program and do nothing else.
+  --print-args-only
+    Print all arguments to this program and do nothing else.
 
-               --program <program>
-                 Specify the path to the program to start.
+  --program <program>
+    Specify the path to the program to start.
 
-               --program-from-cmd-line
-                 Parse the program from the command line given by a `-cmd-line-*` option
+  --program-from-cmd-line
+    Parse the program from the command line given by a `-cmd-line-*` option
 
-               --program-is-null
-                 The first argument to CreateProcessW is NULL.
-                 Not supported right now.
+  --program-is-null
+    The first argument to CreateProcessW is NULL.
+    Not supported right now.
 
-               --cmd-line-in-arg <cmdline>
-                 Specify the command line in one argument.
+  --cmd-line-in-arg <cmdline>
+    Specify the command line in one argument.
 
-               --cmd-line-is-rest <arg>...
-                 Use the rest of the command line as new command line
-             ", arg0);
+  --cmd-line-is-rest <arg>...
+    Use the rest of the command line as new command line
+", arg0);
 }
 
 fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
