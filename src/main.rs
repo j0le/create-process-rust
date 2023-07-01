@@ -1,3 +1,19 @@
+//===- main.rs ------------------------------------------------------------===//
+//
+// Part of the Project “create-process-rust”, licensed under the Apache License,
+// Version 2.0.  See the file “LICENSE.txt” in the root of this repository for
+// license information.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// © Copyright Contributors to the Rust Project
+// © Copyright 2023 Jan Ole Hüser
+//
+// This file containes copied and modified source code of the Rust project, as
+// described in the file “LICENSE.txt”.
+// 
+//===----------------------------------------------------------------------===//
+
 
 use std::{
     borrow::Cow,
