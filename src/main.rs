@@ -446,16 +446,17 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>){
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
     let cmdline_u8 = match cmdline_os_string.to_str() {
         Some(str) => {
-            println!("Die Kommandozeile konnte verlustfrei konvertiert werden.");
+            println!("The command line was converted losslessly.");
             std::borrow::Cow::from(str)
         },
         None => {
-            println!("Die Kommandozeile muste verlustbehaftet konvertiert werden.");
+            println!("The command line was converted lossy!");
             cmdline_os_string.to_string_lossy()
         }
     };
-    println!("Die command line sieht wie folgt aus, \
-              aber ohne die spitzen Anführungszeichen (»«): \n\
+    println!("The command line is put in quotes (»«). \
+              If those quotes are inside the command line, they are not escaped. \
+              The command line is: \n\
               »{}«\n", cmdline_u8);
 
     let mut n : usize = 0;
