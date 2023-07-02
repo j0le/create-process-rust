@@ -687,7 +687,9 @@ fn create_process
 // --cmd-line-in-arg <commandline>
 // --cmd-line-in-arg=<commandline>   // not supported right now
 // --cmd-line-is-rest <args>...
-// --prepend-program                 // right now this is always true
+// --cmd-line-is-null
+// --prepend-program
+// --strip-program
 //
 // For later
 // --cmd-line-from-stdin
