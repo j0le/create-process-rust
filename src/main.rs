@@ -275,7 +275,7 @@ enum ProgramOpt{
 }
 
 #[derive(Debug)]
-struct Options{
+struct ExecOptions{
     program : ProgramOpt,
     cmdline : OsString,
     print_args : bool,
@@ -287,7 +287,7 @@ struct Options{
 enum MainChoice{
     Help,
     PrintArgs,
-    Options(Options),
+    ExecOpts(ExecOptions),
 }
 
 fn print_usage(arg0 : &str) {
@@ -458,7 +458,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
         (None, _, _, _) => Err("program was not specied".to_owned()),
         (_, None, _, _) => Err("cmd line was not specied".to_owned()),
         (Some(program), Some(cmdline), _, _) =>
-            Ok(MainChoice::Options(Options{ program, cmdline, print_args, prepend_program, strip_program, })),
+            Ok(MainChoice::ExecOpts(ExecOptions{ program, cmdline, print_args, prepend_program, strip_program, })),
     }
 }
 
@@ -501,7 +501,7 @@ fn main() -> Result<(), String>{
         None => std::borrow::Cow::from("create-process-rust"),
     };
 
-    let options : Options = match get_options(cmdline, &parsed_args_list){
+    let options : ExecOptions = match get_options(cmdline, &parsed_args_list){
         Ok(MainChoice::PrintArgs) => {
             print_args(cmdline, &parsed_args_list);
             return Ok(());
@@ -510,7 +510,7 @@ fn main() -> Result<(), String>{
             print_usage(&arg0_or_default);
             return Ok(());
         },
-        Ok(MainChoice::Options(opts)) => opts,
+        Ok(MainChoice::ExecOpts(opts)) => opts,
         Err(msg) => {
             println!("{}",msg);
             print_usage(&arg0_or_default);
