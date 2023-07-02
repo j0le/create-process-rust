@@ -277,7 +277,7 @@ enum ProgramOpt{
 #[derive(Debug)]
 struct ExecOptions{
     program : ProgramOpt,
-    cmdline : OsString,
+    cmdline : Option<OsString>,
     print_args : bool,
     prepend_program : bool,
     strip_program : bool,
@@ -376,6 +376,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
     let opt_program_is_null : &OsStr = OsStr::new("--program-is-null");
     let opt_cmd_line_in_arg : &OsStr = OsStr::new("--cmd-line-in-arg");
     let opt_cmd_line_is_rest : &OsStr = OsStr::new("--cmd-line-is-rest");
+    let opt_cmd_line_is_null : &OsStr = OsStr::new("--cmd-line-is-null");
     let opts_help : Vec<&OsStr> = vec![
         OsStr::new("--help"),
         OsStr::new("-help"),
@@ -391,7 +392,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
     let opt_strip_program : &OsStr = OsStr::new("--strip-program");
 
     let mut program : Option<ProgramOpt> = None;
-    let mut cmdline_opt : Option<OsString> = None;
+    let mut cmdline_opt : Option<Option<OsString>> = None;
     let mut print_args : bool = false;
     let mut prepend_program : bool = false;
     let mut strip_program : bool = false;
@@ -446,7 +447,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
                 match args_iter.next() {
-                    Some(next_arg) => cmdline_opt = Some(next_arg.arg.clone()),
+                    Some(next_arg) => cmdline_opt = Some(Some(next_arg.arg.clone())),
                     None => return Err(format!("missing argument for option:\n  {}", &arg)),
                 }
             },
@@ -454,8 +455,14 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 if cmdline_opt.is_some() {
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
-                cmdline_opt = Some(OsString::from_wide(get_rest(cmd_line, arg)));
-                break;
+                cmdline_opt = Some(Some(OsString::from_wide(get_rest(cmd_line, arg))));
+                break; // break, because all args get consumed
+            },
+            x if x == opt_cmd_line_is_null => {
+                if cmdline_opt.is_some() {
+                    return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
+                }
+                cmdline_opt = Some(None);
             },
             _other => {
                 return Err(format!("unknown option:\n  {}", &arg));
@@ -554,7 +561,7 @@ fn main() -> Result<(), String>{
         return Err("Error: \"--prepend-program\" can only be specified with \"--program\".".to_owned());
     }
 
-    let mut new_cmdline : OsString = options.cmdline;
+    let mut new_cmdline : Option<OsString> = options.cmdline;
 
     let program: Option<Cow<'_,OsStr>> = match options.program {
         ProgramOpt::Null => {
@@ -567,13 +574,17 @@ fn main() -> Result<(), String>{
             Some(Cow::from(str))
         },
         ProgramOpt::FromCmdLine => {
-            let x = OsStrExt::encode_wide(new_cmdline.as_os_str());
+            let cmdline_os_str: &OsStr = match &new_cmdline{
+                None => return Err("Error: cannot get program from cmd line, because cmd line is NULL.".to_owned()),
+                Some(cmdline_str) => cmdline_str.as_os_str(),
+            };
+            let x = OsStrExt::encode_wide(cmdline_os_str);
             let new_cmdline_u16 :Vec<u16> = x.collect();
             let new_parsed_args = parse_lp_cmd_line(&new_cmdline_u16, false);
             match new_parsed_args.into_iter().next() {
                 Some(arg) => {
                     if options.strip_program {
-                        new_cmdline = OsString::from_wide(get_rest(&new_cmdline_u16, &arg));
+                        new_cmdline = Some(OsString::from_wide(get_rest(&new_cmdline_u16, &arg)));
                     }
                     Some(Cow::from(arg.arg))
                 },
@@ -584,14 +595,16 @@ fn main() -> Result<(), String>{
         },
     };
 
+    // from https://doc.rust-lang.org/std/option/ :
+    //   as_deref converts from &Option<T> to Option<&T::Target>
+    //
+    // `T` in this case is `OsString` and `T::Target` should be `OsStr` or `&OsStr`.
 
-
-
-    println!("The program      (1st argument to CreateProcessW) is:   {}", quote_or_null(program.as_deref()));
-    println!("The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(Some(&new_cmdline)));
+    println!("The program      (1st argument to CreateProcessW) is:   {}", quote_or_null(Option::<Cow<'_,OsStr>>::as_deref(&program)));
+    println!("The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(new_cmdline.as_deref()));
 
     println!("Execute process:\n");
-    let exit_code : u32 = create_process(program.as_deref(), Some(&new_cmdline))?;
+    let exit_code : u32 = create_process(program.as_deref(), new_cmdline.as_deref())?;
     println!("\nThe exit code is {}", exit_code);
 
     if false {
