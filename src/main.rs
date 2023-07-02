@@ -242,13 +242,13 @@ fn parse_lp_cmd_line<'a>(cmd_line: &'a [u16], handle_first_special: bool) -> Vec
 
 fn get_command_line() -> Result<&'static [u16], &'static str> {
     unsafe {
-        let cmdline_ptr : *mut u16 = Environment::GetCommandLineW().0;
+        let cmdline_ptr : *const u16 = Environment::GetCommandLineW().0;
         if cmdline_ptr.is_null() {
             return Err("Couldn't get commandline");
         }
 
         let mut len : usize = 0usize;
-        let mut moving_ptr : *mut u16 = cmdline_ptr;
+        let mut moving_ptr : *const u16 = cmdline_ptr;
         while 0u16 != *moving_ptr {
             len = len.checked_add(1usize).ok_or("Interger Overflow")?;
             moving_ptr = moving_ptr.add(1);
