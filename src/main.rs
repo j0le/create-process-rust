@@ -332,7 +332,6 @@ OPTIONS:
 
   --program-is-null
     The first argument to CreateProcessW is NULL.
-    Not supported right now.
 
   --cmd-line-in-arg <cmdline>
     Specify the command line in one argument.
@@ -493,6 +492,18 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>){
     }
 }
 
+
+fn quote_or_null
+    <S: AsRef<OsStr>>
+    (opt: Option<S>)
+    -> Cow<'static, str>
+{
+    match opt {
+        None => Cow::from("NULL"),
+        Some(os_str) => Cow::from(format!("»{}«",os_str.as_ref().to_string_lossy())),
+    }
+}
+
 fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = get_command_line()?;
     let parsed_args_list : Vec<Arg<'static>> = parse_lp_cmd_line(cmdline, true);
@@ -532,15 +543,15 @@ fn main() -> Result<(), String>{
 
     let mut new_cmdline : OsString = options.cmdline;
 
-    let program: Cow<'_,OsStr> = match options.program {
+    let program: Option<Cow<'_,OsStr>> = match options.program {
         ProgramOpt::Null => {
-            return Err("Error: \"--program-null\" is not supported right now".to_owned());
+            None
         },
         ProgramOpt::Str(str) => {
             if options.prepend_program {
                 return Err("Error: \"--prepend-program\" is not implemented yet".to_owned());
             }
-            Cow::from(str)
+            Some(Cow::from(str))
         },
         ProgramOpt::FromCmdLine => {
             let x = OsStrExt::encode_wide(new_cmdline.as_os_str());
@@ -551,7 +562,7 @@ fn main() -> Result<(), String>{
                     if options.strip_program {
                         new_cmdline = OsString::from_wide(get_rest(&new_cmdline_u16, &arg));
                     }
-                    Cow::from(arg.arg)
+                    Some(Cow::from(arg.arg))
                 },
                 None => {
                     return Err("Error: Couldn't get program from command line".to_owned());
@@ -561,11 +572,13 @@ fn main() -> Result<(), String>{
     };
 
 
-    println!("The program      (1st argument to CreateProcessW) is:   »{}«", program.to_string_lossy());
-    println!("The command line (2nd argument to CreateProcessW) is:   »{}«", new_cmdline.to_string_lossy());
+
+
+    println!("The program      (1st argument to CreateProcessW) is:   {}", quote_or_null(program.as_deref()));
+    println!("The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(Some(&new_cmdline)));
 
     println!("Execute process:\n");
-    let exit_code : u32 = create_process(Some(program), Some(new_cmdline))?;
+    let exit_code : u32 = create_process(program.as_deref(), Some(&new_cmdline))?;
     println!("\nThe exit code is {}", exit_code);
 
     if false {
