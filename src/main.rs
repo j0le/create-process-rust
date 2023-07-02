@@ -24,8 +24,6 @@ use std::{
     io::Write,
     os::windows::ffi::OsStrExt,
     os::windows::ffi::OsStringExt,
-    os::windows::process::*,
-    process::*,
     thread,
     time,
 };
@@ -40,9 +38,6 @@ use windows::Win32::Foundation::{
     HANDLE,
     CloseHandle,
     WAIT_OBJECT_0,
-    WAIT_TIMEOUT,
-    WAIT_ABANDONED,
-    WAIT_FAILED,
     WIN32_ERROR,
 };
 
