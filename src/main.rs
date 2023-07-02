@@ -278,9 +278,14 @@ enum ProgramOpt{
 struct ExecOptions{
     program : ProgramOpt,
     cmdline : Option<OsString>,
-    print_args : bool,
     prepend_program : bool,
     strip_program : bool,
+}
+
+struct PrintOptions{
+    json : bool,
+    silent : bool,
+    print_args : bool,
 }
 
 #[derive(Debug)]
@@ -290,14 +295,20 @@ enum MainChoice{
     ExecOpts(ExecOptions),
 }
 
+struct MainOptions{
+    print_opts : PrintOptions,
+    main_choice : MainChoice,
+}
+
 fn print_usage(arg0 : &str) {
     println!("
 USAGE:
-  \"{0}\" [--print-args-only <arg>...]
+  \"{0}\" [<PRINT_OPTION>...] [--print-args-only <arg>...]
 
   \"{0}\" {{ --help | -help | /help | -h | /h | -? | /? }}
 
   \"{0}\"
+    [<PRINT_OPTION>...]
     [--print-args]
     {{
       {{ --program <program> [--prepend-program] }} |
@@ -351,6 +362,17 @@ OPTIONS:
 
   --cmd-line-is-rest <arg>...
     Use the rest of the command line as new command line.
+
+
+PRINT_OPTIONS:
+ 
+  --json
+    Output Data as JSON
+
+  --silent
+    Don't be verbose
+  
+
 ", arg0);
 }
 
@@ -364,11 +386,18 @@ fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
     }
 }
 
-fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> {
+fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String> {
     let mut args_iter = args.iter();
+    let mut print_opts = PrintOptions{
+        print_args: false,
+        json: false,
+        silent: false,
+    };
+
     // skip first/zerothed argument
     if let None = args_iter.next() {
-        return Ok(MainChoice::PrintArgs);
+        print_opts.print_args = true;
+        return Ok( MainOptions{ print_opts, main_choice: MainChoice::PrintArgs, });
     }
 
     let opt_program : &OsStr = OsStr::new("--program");
@@ -377,6 +406,8 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
     let opt_cmd_line_in_arg : &OsStr = OsStr::new("--cmd-line-in-arg");
     let opt_cmd_line_is_rest : &OsStr = OsStr::new("--cmd-line-is-rest");
     let opt_cmd_line_is_null : &OsStr = OsStr::new("--cmd-line-is-null");
+    let opt_prepend_program : &OsStr = OsStr::new("--prepend-program");
+    let opt_strip_program : &OsStr = OsStr::new("--strip-program");
     let opts_help : Vec<&OsStr> = vec![
         OsStr::new("--help"),
         OsStr::new("-help"),
@@ -388,16 +419,15 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
     ];
     let opt_print_args : &OsStr = OsStr::new("--print-args");
     let opt_print_args_only : &OsStr = OsStr::new("--print-args-only");
-    let opt_prepend_program : &OsStr = OsStr::new("--prepend-program");
-    let opt_strip_program : &OsStr = OsStr::new("--strip-program");
+    let opt_json : &OsStr = OsStr::new("--json");
+    let opt_silent : &OsStr = OsStr::new("--silent");
 
     let mut program : Option<ProgramOpt> = None;
     let mut cmdline_opt : Option<Option<OsString>> = None;
-    let mut print_args : bool = false;
     let mut prepend_program : bool = false;
     let mut strip_program : bool = false;
 
-    let mut first_arg = true;
+    let mut only_print_opts_thus_far = true;
     while let Some(arg) = args_iter.next() {
         match arg.arg.as_os_str() {
             x if x == opt_prepend_program => {
@@ -407,11 +437,21 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 strip_program = true;
             },
             x if x == opt_print_args => {
-                print_args = true;
+                print_opts.print_args = true;
+                continue; // skip setting only_print_opts_thus_far to false
+            },
+            x if x == opt_json => {
+                print_opts.json = true;
+                continue; // skip setting only_print_opts_thus_far to false
+            },
+            x if x == opt_silent => {
+                print_opts.silent = true;
+                continue; // skip setting only_print_opts_thus_far to false
             },
             x if x == opt_print_args_only => {
-                return if first_arg {
-                    Ok(MainChoice::PrintArgs)
+                return if only_print_opts_thus_far {
+                    print_opts.print_args = true;
+                    return Ok( MainOptions{ print_opts, main_choice: MainChoice::PrintArgs, });
                 } else {
                     Err(format!("bad option, \"{}\" may only be the first argument:\n  {}",
                                 &opt_cmd_line_in_arg.to_string_lossy(),
@@ -419,7 +459,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 };
             }
             x if opts_help.contains(&x) => {
-                return Ok(MainChoice::Help);
+                return Ok( MainOptions{ print_opts, main_choice: MainChoice::Help, });
             },
             x if x == opt_program => {
                 if program.is_some() {
@@ -468,20 +508,27 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
                 return Err(format!("unknown option:\n  {}", &arg));
             }
         }
-        first_arg = false;
+        only_print_opts_thus_far = false;
     }
-    match (program, cmdline_opt, print_args, first_arg) {
-        (None, None, true, _) => Ok(MainChoice::PrintArgs),
-        (None, None, _, true) => Ok(MainChoice::PrintArgs),
+    match (program, cmdline_opt, print_opts.print_args, only_print_opts_thus_far) {
+        (None, None, true, _) => Ok(MainOptions{ print_opts, main_choice: MainChoice::PrintArgs, }),
+        (None, None, _, true) => Ok(MainOptions{ print_opts, main_choice: MainChoice::PrintArgs, }),
         (None, None, _, _) => Err("Neither program nor cmd line were specified".to_owned()),
         (None, _, _, _) => Err("program was not specied".to_owned()),
         (_, None, _, _) => Err("cmd line was not specied".to_owned()),
         (Some(program), Some(cmdline), _, _) =>
-            Ok(MainChoice::ExecOpts(ExecOptions{ program, cmdline, print_args, prepend_program, strip_program, })),
+            Ok(
+                MainOptions{
+                    print_opts,
+                    main_choice : MainChoice::ExecOpts(
+                        ExecOptions{ program, cmdline, prepend_program, strip_program, }
+                    )
+                }
+            ),
     }
 }
 
-fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>){
+fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str){
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
     let cmdline_u8 = match cmdline_os_string.to_str() {
         Some(str) => {
@@ -532,16 +579,8 @@ fn main() -> Result<(), String>{
         None => std::borrow::Cow::from("create-process-rust"),
     };
 
-    let options : ExecOptions = match get_options(cmdline, &parsed_args_list){
-        Ok(MainChoice::PrintArgs) => {
-            print_args(cmdline, &parsed_args_list);
-            return Ok(());
-        },
-        Ok(MainChoice::Help) => {
-            print_usage(&arg0_or_default);
-            return Ok(());
-        },
-        Ok(MainChoice::ExecOpts(opts)) => opts,
+    let options : MainOptions = match get_options(cmdline, &parsed_args_list){
+        Ok(options) => options,
         Err(msg) => {
             println!("{}",msg);
             print_usage(&arg0_or_default);
@@ -549,26 +588,38 @@ fn main() -> Result<(), String>{
         },
     };
 
-    if options.print_args {
-        print_args(cmdline, &parsed_args_list);
+    let exec_options : ExecOptions = match options.main_choice {
+        MainChoice::PrintArgs => {
+            print_args(cmdline, &parsed_args_list, & options.print_opts, "");
+            return Ok(());
+        },
+        MainChoice::Help => {
+            print_usage(&arg0_or_default);
+            return Ok(());
+        },
+        MainChoice::ExecOpts(opts) => opts,
+    };
+
+    if options.print_opts.print_args {
+        print_args(cmdline, &parsed_args_list, & options.print_opts, "");
     }
 
-    if options.strip_program && (match options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
+    if exec_options.strip_program && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
         return Err("Error: \"--strip-program\" can only be specified with \"--program-from-cmd-line\".".to_owned());
     }
 
-    if options.prepend_program && (match options.program { ProgramOpt::Str(_) => false, _ => true }) {
+    if exec_options.prepend_program && (match exec_options.program { ProgramOpt::Str(_) => false, _ => true }) {
         return Err("Error: \"--prepend-program\" can only be specified with \"--program\".".to_owned());
     }
 
-    let mut new_cmdline : Option<OsString> = options.cmdline;
+    let mut new_cmdline : Option<OsString> = exec_options.cmdline;
 
-    let program: Option<Cow<'_,OsStr>> = match options.program {
+    let program: Option<Cow<'_,OsStr>> = match exec_options.program {
         ProgramOpt::Null => {
             None
         },
         ProgramOpt::Str(str) => {
-            if options.prepend_program {
+            if exec_options.prepend_program {
                 return Err("Error: \"--prepend-program\" is not implemented yet".to_owned());
             }
             Some(Cow::from(str))
@@ -583,7 +634,7 @@ fn main() -> Result<(), String>{
             let new_parsed_args = parse_lp_cmd_line(&new_cmdline_u16, false);
             match new_parsed_args.into_iter().next() {
                 Some(arg) => {
-                    if options.strip_program {
+                    if exec_options.strip_program {
                         new_cmdline = Some(OsString::from_wide(get_rest(&new_cmdline_u16, &arg)));
                     }
                     Some(Cow::from(arg.arg))
