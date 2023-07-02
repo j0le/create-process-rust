@@ -11,7 +11,7 @@
 //
 // This file containes copied and modified source code of the Rust project, as
 // described in the file “LICENSE.txt”.
-// 
+//
 //===----------------------------------------------------------------------===//
 
 
@@ -565,7 +565,7 @@ fn main() -> Result<(), String>{
     println!("The command line (2nd argument to CreateProcessW) is:   »{}«", new_cmdline.to_string_lossy());
 
     println!("Execute process:\n");
-    let exit_code : u32 = create_process(program, new_cmdline)?;
+    let exit_code : u32 = create_process(Some(program), Some(new_cmdline))?;
     println!("\nThe exit code is {}", exit_code);
 
     if false {
@@ -580,7 +580,7 @@ fn main() -> Result<(), String>{
 
 fn create_process
     <S1: AsRef<OsStr>, S2: AsRef<OsStr>>
-    (program_os_str: S1, cmd_os_str: S2) 
+    (program_opt: Option<S1>, cmd_opt: Option<S2>)
     -> Result<u32,String>
 {
     let startup_info : WinThreading::STARTUPINFOW = WinThreading::STARTUPINFOW{
@@ -606,14 +606,25 @@ fn create_process
     let creation_flags = WinThreading::PROCESS_CREATION_FLAGS(0);
     let mut process_information = WinThreading::PROCESS_INFORMATION::default();
 
-    let mut program_vec_u16 : Vec<u16> = OsStrExt::encode_wide(program_os_str.as_ref()).collect();
-    program_vec_u16.push(0u16); // Push null terminator
+    let mut program_vec_u16 : Vec<u16>;
+    let program_pcwstr: PCWSTR = match program_opt{
+        None => PCWSTR::null(),
+        Some(os_str) => {
+            program_vec_u16 = OsStrExt::encode_wide(os_str.as_ref()).collect();
+            program_vec_u16.push(0u16); // Push null terminator
+            PCWSTR::from_raw(program_vec_u16.as_ptr())
+        },
+    };
 
-    let mut cmd_vec_u16 : Vec<u16> = OsStrExt::encode_wide(cmd_os_str.as_ref()).collect();
-    cmd_vec_u16.push(0u16); // Push null terminator
-
-    let program_pcwstr: PCWSTR = PCWSTR::from_raw(program_vec_u16.as_ptr());
-    let cmd_pwstr: PWSTR = PWSTR::from_raw(cmd_vec_u16.as_mut_ptr());
+    let mut cmd_vec_u16 : Vec<u16>;
+    let cmd_pwstr: PWSTR = match cmd_opt{
+        None => PWSTR::null(),
+        Some(os_str) => {
+            cmd_vec_u16 = OsStrExt::encode_wide(os_str.as_ref()).collect();
+            cmd_vec_u16.push(0u16); // Push null terminator
+            PWSTR::from_raw(cmd_vec_u16.as_mut_ptr())
+        },
+    };
 
     if ! unsafe{ WinThreading::CreateProcessW(
             program_pcwstr,
