@@ -285,6 +285,7 @@ struct Options{
     cmdline : OsString,
     print_args : bool,
     prepend_program : bool,
+    strip_program : bool,
 }
 
 #[derive(Debug)]
@@ -299,7 +300,7 @@ fn print_usage(arg0 : &str) {
 USAGE:
   \"{0}\" [--print-args-only <arg>...]
   \"{0}\" {{ --help | -help | /help | -h | /h | -? | /? }}
-  \"{0}\" [--print-args] --prepend-program {{ --program <program> | --program-from-cmd-line | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
+  \"{0}\" [--print-args] {{ {{ --program <program> [--prepend-program] }} | {{ --program-from-cmd-line [--strip-program] }} | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
 
 
 DESCRIPTION:
@@ -314,10 +315,6 @@ OPTIONS:
   --help, -help, /help, -h, /h, -?, /?
     print this help text
 
-  --prepend-program
-    Prepend the program to the command line.
-    At the moment, this must always be specified.
-
   --print-args
     Print all the arguments to this program.
 
@@ -327,8 +324,16 @@ OPTIONS:
   --program <program>
     Specify the path to the program to start.
 
+  --prepend-program
+    Prepend the program to the command line.
+    This is only valid with `--program <program>`
+
   --program-from-cmd-line
-    Parse the program from the command line given by a `-cmd-line-*` option
+    Parse the program from the command line given by a `--cmd-line-*` option
+
+  --strip-program
+    Strip the program from the command line given by a `--cmd-line-*` option
+    This is only valid with `--program-from-cmd-line`
 
   --program-is-null
     The first argument to CreateProcessW is NULL.
@@ -376,17 +381,22 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
     let opt_print_args : &OsStr = OsStr::new("--print-args");
     let opt_print_args_only : &OsStr = OsStr::new("--print-args-only");
     let opt_prepend_program : &OsStr = OsStr::new("--prepend-program");
+    let opt_strip_program : &OsStr = OsStr::new("--strip-program");
 
     let mut program : Option<ProgramOpt> = None;
     let mut cmdline_opt : Option<OsString> = None;
     let mut print_args : bool = false;
     let mut prepend_program : bool = false;
+    let mut strip_program : bool = false;
 
     let mut first_arg = true;
     while let Some(arg) = args_iter.next() {
         match arg.arg.as_os_str() {
             x if x == opt_prepend_program => {
                 prepend_program = true;
+            },
+            x if x == opt_strip_program => {
+                strip_program = true;
             },
             x if x == opt_print_args => {
                 print_args = true;
@@ -453,7 +463,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainChoice,String> 
         (None, _, _, _) => Err("program was not specied".to_owned()),
         (_, None, _, _) => Err("cmd line was not specied".to_owned()),
         (Some(program), Some(cmdline), _, _) =>
-            Ok(MainChoice::Options(Options{ program, cmdline, print_args, prepend_program, })),
+            Ok(MainChoice::Options(Options{ program, cmdline, print_args, prepend_program, strip_program, })),
     }
 }
 
@@ -508,6 +518,7 @@ fn main() -> Result<(), String>{
         Ok(MainChoice::Options(opts)) => opts,
         Err(msg) => {
             println!("{}",msg);
+            print_usage(&arg0_or_default);
             return Err("bad option".to_owned());
         },
     };
@@ -516,9 +527,12 @@ fn main() -> Result<(), String>{
         print_args(cmdline, &parsed_args_list);
     }
 
-    if ! options.prepend_program {
-        // When using Command, the program get prepended to the command line
-        return Err("Error: \"--prepend-program\" not specified".to_owned());
+    if options.strip_program && (match options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
+        return Err("Error: \"--strip-program\" can only be specified with \"--program-from-cmd-line\".".to_owned());
+    }
+
+    if options.prepend_program && (match options.program { ProgramOpt::Str(_) => false, _ => true }) {
+        return Err("Error: \"--prepend-program\" can only be specified with \"--program\".".to_owned());
     }
 
     let mut new_cmdline : OsString = options.cmdline;
@@ -528,6 +542,9 @@ fn main() -> Result<(), String>{
             return Err("Error: \"--program-null\" is not supported right now".to_owned());
         },
         ProgramOpt::Str(str) => {
+            if options.prepend_program {
+                return Err("Error: \"--prepend-program\" is not implemented yet".to_owned());
+            }
             Cow::from(str)
         },
         ProgramOpt::FromCmdLine => {
@@ -536,7 +553,9 @@ fn main() -> Result<(), String>{
             let new_parsed_args = parse_lp_cmd_line(&new_cmdline_u16, false);
             match new_parsed_args.into_iter().next() {
                 Some(arg) => {
-                    new_cmdline = OsString::from_wide(get_rest(&new_cmdline_u16, &arg));
+                    if options.strip_program {
+                        new_cmdline = OsString::from_wide(get_rest(&new_cmdline_u16, &arg));
+                    }
                     Cow::from(arg.arg)
                 },
                 None => {
@@ -546,18 +565,12 @@ fn main() -> Result<(), String>{
         },
     };
 
-    experiment_create_process()?;
 
-    println!("Program to execute is »{}«", program.to_string_lossy());
-    println!("Command line for the new process without program is »{}«", new_cmdline.to_string_lossy());
+    println!("The program      (1st argument to CreateProcessW) is:   »{}«", program.to_string_lossy());
+    println!("The command line (2nd argument to CreateProcessW) is:   »{}«", new_cmdline.to_string_lossy());
 
     println!("Execute process:\n");
-    let status: ExitStatus = Command::new(program).raw_arg(new_cmdline).status().map_err(|e|{
-        let string : String = e.to_string();
-        string
-    })?;
-
-    let exit_code :i32 = status.code().unwrap_or(0i32);
+    let exit_code : u32 = create_process(program, new_cmdline)?;
     println!("\nThe exit code is {}", exit_code);
 
     if false {
@@ -567,10 +580,14 @@ fn main() -> Result<(), String>{
             thread::sleep(time::Duration::from_millis(2000));
         }
     }
-    std::process::exit(exit_code);
+    std::process::exit(exit_code as i32);
 }
 
-fn experiment_create_process() -> Result<u32,String>{
+fn create_process
+    <S1: AsRef<OsStr>, S2: AsRef<OsStr>>
+    (program_os_str: S1, cmd_os_str: S2) 
+    -> Result<u32,String>
+{
     let startup_info : WinThreading::STARTUPINFOW = WinThreading::STARTUPINFOW{
         cb: u32::try_from(std::mem::size_of::<WinThreading::STARTUPINFOW>()).unwrap(),
         lpReserved: PWSTR::null(),
@@ -594,12 +611,10 @@ fn experiment_create_process() -> Result<u32,String>{
     let creation_flags = WinThreading::PROCESS_CREATION_FLAGS(0);
     let mut process_information = WinThreading::PROCESS_INFORMATION::default();
 
-    let program_os_str = OsStr::new("C:\\Windows\\System32\\cmd.exe");
-    let mut program_vec_u16 : Vec<u16> = OsStrExt::encode_wide(program_os_str).collect();
+    let mut program_vec_u16 : Vec<u16> = OsStrExt::encode_wide(program_os_str.as_ref()).collect();
     program_vec_u16.push(0u16); // Push null terminator
 
-    let cmd_os_str = OsStr::new("\"C:\\Windows\\System32\\cmd.exe\" /k (echo moin)");
-    let mut cmd_vec_u16 : Vec<u16> = OsStrExt::encode_wide(cmd_os_str).collect();
+    let mut cmd_vec_u16 : Vec<u16> = OsStrExt::encode_wide(cmd_os_str.as_ref()).collect();
     cmd_vec_u16.push(0u16); // Push null terminator
 
     let program_pcwstr: PCWSTR = PCWSTR::from_raw(program_vec_u16.as_ptr());
