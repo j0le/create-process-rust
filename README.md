@@ -84,6 +84,14 @@ Argument  5, 133 .. 155, lossless: »C:/Program Files/Git«, raw: »"C:/Program 
 
 As you can see, cmd.exe preserves spaces between arguments, and git-bash does not. But somehow an extra spaces apears after argument zero.
 
+### Tip for git-bash / MSYS2 bash
+
+Set the environement variable `MSYS_NO_PATHCONV` to `1` to disable path conversion; for example:
+
+```sh
+MSYS_NO_PATHCONV=1 ./create-process-rust.exe --program "$(cygpath -wa "$(which cmd.exe)" )" --cmd-line-in-arg '/c (echo hello world)'
+```
+
 ## License
 
 For lincense information see the file `LICENSE.txt`.
