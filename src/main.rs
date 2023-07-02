@@ -604,6 +604,61 @@ fn main() -> Result<(), String>{
     std::process::exit(exit_code as i32);
 }
 
+
+trait WindowsStringFromVecU16{
+    fn get_win_str_from_vec_u16(vec : &mut Vec<u16>) -> Self;
+    fn null() -> Self;
+}
+
+impl WindowsStringFromVecU16 for PCWSTR{
+    fn get_win_str_from_vec_u16(vec : &mut Vec<u16>) -> Self {
+        PCWSTR::from_raw(vec.as_ptr())
+    }
+    fn null()->Self{
+        PCWSTR::null()
+    }
+}
+impl WindowsStringFromVecU16 for PWSTR{
+    fn get_win_str_from_vec_u16(vec : &mut Vec<u16>) -> Self {
+        PWSTR::from_raw(vec.as_mut_ptr())
+    }
+    fn null()->Self{
+        PWSTR::null()
+    }
+}
+
+struct VecHolder<WinString: Sized+WindowsStringFromVecU16>
+{
+    vec: Vec<u16>,
+    win_string: WinString
+}
+
+impl<WinString: Sized+WindowsStringFromVecU16> VecHolder<WinString>
+where 
+    WinString : Sized
+{
+    fn get_from_os_str_opt
+        <S: AsRef<OsStr>>
+        (opt: Option<S>) 
+        -> Self
+    {
+        let mut x : VecHolder<WinString> = VecHolder::<WinString>{
+            vec : vec!(),
+            win_string : WinString::null(),
+        };
+        match opt{
+            None => {},
+            Some(os_str) => {
+                x.vec = OsStrExt::encode_wide(os_str.as_ref()).collect();
+                x.vec.push(0u16); // Push null terminator
+                x.win_string = WinString::get_win_str_from_vec_u16(&mut x.vec);
+            },
+        };
+        return x;
+
+    }
+}
+
 fn create_process
     <S1: AsRef<OsStr>, S2: AsRef<OsStr>>
     (program_opt: Option<S1>, cmd_opt: Option<S2>)
@@ -632,29 +687,12 @@ fn create_process
     let creation_flags = WinThreading::PROCESS_CREATION_FLAGS(0);
     let mut process_information = WinThreading::PROCESS_INFORMATION::default();
 
-    let mut program_vec_u16 : Vec<u16>;
-    let program_pcwstr: PCWSTR = match program_opt{
-        None => PCWSTR::null(),
-        Some(os_str) => {
-            program_vec_u16 = OsStrExt::encode_wide(os_str.as_ref()).collect();
-            program_vec_u16.push(0u16); // Push null terminator
-            PCWSTR::from_raw(program_vec_u16.as_ptr())
-        },
-    };
-
-    let mut cmd_vec_u16 : Vec<u16>;
-    let cmd_pwstr: PWSTR = match cmd_opt{
-        None => PWSTR::null(),
-        Some(os_str) => {
-            cmd_vec_u16 = OsStrExt::encode_wide(os_str.as_ref()).collect();
-            cmd_vec_u16.push(0u16); // Push null terminator
-            PWSTR::from_raw(cmd_vec_u16.as_mut_ptr())
-        },
-    };
+    let program_win_str = VecHolder::<PCWSTR>::get_from_os_str_opt(program_opt);
+    let cmd_win_str = VecHolder::<PWSTR>::get_from_os_str_opt(cmd_opt);
 
     if ! unsafe{ WinThreading::CreateProcessW(
-            program_pcwstr,
-            cmd_pwstr,
+            program_win_str.win_string,
+            cmd_win_str.win_string,
             None,
             None,
             false,
