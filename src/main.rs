@@ -294,8 +294,20 @@ fn print_usage(arg0 : &str) {
     println!("
 USAGE:
   \"{0}\" [--print-args-only <arg>...]
+
   \"{0}\" {{ --help | -help | /help | -h | /h | -? | /? }}
-  \"{0}\" [--print-args] {{ {{ --program <program> [--prepend-program] }} | {{ --program-from-cmd-line [--strip-program] }} | --program-is-null }} {{ --cmd-line-in-arg <cmdline> | --cmd-line-is-rest <arg>... }}
+
+  \"{0}\"
+    [--print-args]
+    {{
+      {{ --program <program> [--prepend-program] }} |
+      {{ --program-from-cmd-line [--strip-program] }} |
+      --program-is-null
+    }}
+    {{
+      --cmd-line-in-arg <cmdline> |
+      --cmd-line-is-rest <arg>...
+    }}
 
 
 DESCRIPTION:
@@ -308,7 +320,7 @@ DESCRIPTION:
 OPTIONS:
 
   --help, -help, /help, -h, /h, -?, /?
-    print this help text
+    Print this help text.
 
   --print-args
     Print all the arguments to this program.
@@ -321,15 +333,15 @@ OPTIONS:
 
   --prepend-program
     Prepend the program to the command line.
-    This is only valid with `--program <program>`
+    This is only valid with `--program <program>`.
     This is not supported right now.
 
   --program-from-cmd-line
-    Parse the program from the command line given by a `--cmd-line-*` option
+    Parse the program from the command line given by a `--cmd-line-*` option.
 
   --strip-program
-    Strip the program from the command line given by a `--cmd-line-*` option
-    This is only valid with `--program-from-cmd-line`
+    Strip the program from the command line given by a `--cmd-line-*` option.
+    This is only valid with `--program-from-cmd-line`.
 
   --program-is-null
     The first argument to CreateProcessW is NULL.
@@ -338,7 +350,7 @@ OPTIONS:
     Specify the command line in one argument.
 
   --cmd-line-is-rest <arg>...
-    Use the rest of the command line as new command line
+    Use the rest of the command line as new command line.
 ", arg0);
 }
 
