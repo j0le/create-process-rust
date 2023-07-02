@@ -600,7 +600,7 @@ fn main() -> Result<(), String>{
     //
     // `T` in this case is `OsString` and `T::Target` should be `OsStr` or `&OsStr`.
 
-    println!("The program      (1st argument to CreateProcessW) is:   {}", quote_or_null(Option::<Cow<'_,OsStr>>::as_deref(&program)));
+    println!("The program      (1st argument to CreateProcessW) is:   {}", quote_or_null((&program).as_deref()));
     println!("The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(new_cmdline.as_deref()));
 
     println!("Execute process:\n");
