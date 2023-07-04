@@ -7,6 +7,7 @@ name = "create-process-rust"
 version = "0.1.0"
 dependencies = [
  "itertools",
+ "serde",
  "serde_json",
  "url",
  "windows",

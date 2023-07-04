@@ -41,12 +41,47 @@ use windows::Win32::Foundation::{
     WIN32_ERROR,
 };
 
+use serde::{
+    Serialize,
+    Serializer,
+    ser::SerializeStruct,
+};
+
 
 struct Arg<'lifetime_of_slice> {
     arg: OsString,
     range: std::ops::Range<usize>,
     raw: &'lifetime_of_slice[u16],
     number: usize,
+}
+
+impl<'lifetime_of_slice> serde::Serialize for Arg<'lifetime_of_slice> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let (arg_lossy, arg) = match self.arg.to_str() {
+            Some(inner) => (false, std::borrow::Cow::from(inner)),
+            None      => (true, self.arg.to_string_lossy()),
+        };
+        let raw_os_str = OsString::from_wide(self.raw);
+        let (raw_lossy, raw) = match raw_os_str.to_str() {
+            Some(inner) => (false, std::borrow::Cow::from(inner)),
+            None      => (true, self.arg.to_string_lossy()),
+        };
+        let arg_vec : Vec<u16> = self.arg.encode_wide().collect();
+        // 3 is the number of fields in the struct.
+        let mut state = serializer.serialize_struct("Arg", 8)?;
+        state.serialize_field("arg", &arg)?;
+        state.serialize_field("arg-lossy", &arg_lossy)?;
+        state.serialize_field("arg-utf16", &arg_vec)?;
+        state.serialize_field("raw", &raw)?;
+        state.serialize_field("raw-lossy", &raw_lossy)?;
+        state.serialize_field("raw-utf16", &self.raw)?;
+        state.serialize_field("raw-start", &self.range.start)?;
+        state.serialize_field("raw-end", &self.range.end)?;
+        state.end()
+    }
 }
 
 impl fmt::Display for Arg<'_> {
@@ -528,7 +563,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     }
 }
 
-fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str){
+fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str) -> io::Result<()>{
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
     let cmdline_u8 = match cmdline_os_string.to_str() {
         Some(str) => {
@@ -545,18 +580,56 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &Pri
               The command line is: \n\
               »{}«\n", cmdline_u8);
 
-    let mut n : usize = 0;
-    for Arg {arg, range, raw, ..} in parsed_args_list {
-        let (lossless_or_lossy, arg) = match arg.to_str() {
-            Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
-            None      => ("lossy:   ", arg.to_string_lossy()),
-        };
-        let raw = OsString::from_wide(raw);
-        let raw = raw.to_string_lossy();
-        println!("Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
-                 n, range.start, range.end, lossless_or_lossy, arg, raw);
-        n += 1;
+    if print_opts.json {
+        let mut stdout = io::stdout().lock();
+        serde_json::to_writer_pretty(&mut stdout, parsed_args_list)?;
+        stdout.write_all(b"\n")?;
     }
+    else {
+        let mut n : usize = 0;
+        for Arg {arg, range, raw, ..} in parsed_args_list {
+            let (lossless_or_lossy, arg) = match arg.to_str() {
+                Some(arg) => ("lossless:", std::borrow::Cow::from(arg)),
+                None      => ("lossy:   ", arg.to_string_lossy()),
+            };
+            let raw = OsString::from_wide(raw);
+            let raw = raw.to_string_lossy();
+            println!("Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
+                     n, range.start, range.end, lossless_or_lossy, arg, raw);
+            n += 1;
+        }
+    }
+    Ok(())
+}
+
+fn experiment_with_serde_json() -> io::Result<()>{
+    let my_json = serde_json::json!({
+        "command-line" : "\"hel\"lo world",
+        "lossy": false,
+        "command-line-utf-16": [1,2,3,4],
+        "args": 
+        [
+            {
+                "arg": "hello",
+                "arg-lossy": false,
+                "raw": "\"hel\"lo",
+                "raw-lossy": false,
+                "utf16": [1,2],
+                "raw-utf16": [1,2],
+            },
+            {
+                "arg": "world",
+                "arg-raw": "world",
+                "arg-utf-16": [3,4],
+                "arg-raw-utf-16": [1,2],
+            }
+        ]
+    });
+
+    let mut stdout = io::stdout().lock();
+    serde_json::to_writer_pretty(&mut stdout, &my_json)?;
+    stdout.write_all(b"\n")?;
+    Ok(())
 }
 
 
@@ -579,6 +652,8 @@ fn main() -> Result<(), String>{
         None => std::borrow::Cow::from("create-process-rust"),
     };
 
+    //experiment_with_serde_json().map_err(|error| error.to_string())?;
+
     let options : MainOptions = match get_options(cmdline, &parsed_args_list){
         Ok(options) => options,
         Err(msg) => {
@@ -590,7 +665,7 @@ fn main() -> Result<(), String>{
 
     let exec_options : ExecOptions = match options.main_choice {
         MainChoice::PrintArgs => {
-            print_args(cmdline, &parsed_args_list, & options.print_opts, "");
+            print_args(cmdline, &parsed_args_list, & options.print_opts, "").map_err(|error| error.to_string())?;
             return Ok(());
         },
         MainChoice::Help => {
@@ -601,7 +676,7 @@ fn main() -> Result<(), String>{
     };
 
     if options.print_opts.print_args {
-        print_args(cmdline, &parsed_args_list, & options.print_opts, "");
+        print_args(cmdline, &parsed_args_list, & options.print_opts, "").map_err(|error| error.to_string())?;
     }
 
     if exec_options.strip_program && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
