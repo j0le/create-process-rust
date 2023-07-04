@@ -92,6 +92,50 @@ Set the environement variable `MSYS_NO_PATHCONV` to `1` to disable path conversi
 MSYS_NO_PATHCONV=1 ./create-process-rust.exe --program "$(cygpath -wa "$(which cmd.exe)" )" --cmd-line-in-arg '/c (echo hello world)'
 ```
 
+## Build Instructions for Windows
+
+Install git, by taking one of these links:
+- https://git-scm.com/download/win
+- https://gitforwindows.org/
+
+
+Install the rust toolchain with rustup by following these instructions: https://www.rust-lang.org/tools/install
+
+Clone this repository:
+
+```
+cd some/nice/directory
+git clone https://github.com/j0le/create-process-rust.git
+```
+
+Replace `some/nice/directory` with the path to some nice directory.
+
+Change your current working directory to the directory, where the repository is:
+
+```
+cd create-process-rust
+```
+
+If you use cmd.exe as your shell, execute this:
+
+```
+"%USERPROFILE%\.cargo\bin\cargo.exe" build
+```
+
+If you use git-bash, execute this:
+
+```
+~/.cargo/bin/cargo build
+```
+
+To execute the program, use this command.
+
+```
+cargo run -- --help
+```
+
+Replace `cargo` with the path to the cargo executable.
+
 ## License
 
 For lincense information see the file `LICENSE.txt`.
