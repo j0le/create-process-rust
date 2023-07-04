@@ -150,4 +150,4 @@ by others:
 
 ## License
 
-For lincense information see the file `LICENSE.txt`.
+For lincense information see the file [LICENSE.txt](LICENSE.txt).
