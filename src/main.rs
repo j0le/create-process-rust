@@ -778,7 +778,7 @@ fn create_process
 // --print-args
 // --program <program>
 // --program=<program>               // not supported right now
-// --program-is-null                 // not supported right now
+// --program-is-null
 // --program-from-cmd-line
 // --cmd-line-in-arg <commandline>
 // --cmd-line-in-arg=<commandline>   // not supported right now
