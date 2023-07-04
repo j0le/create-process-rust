@@ -69,15 +69,15 @@ impl<'lifetime_of_slice> serde::Serialize for Arg<'lifetime_of_slice> {
             Some(inner) => (false, std::borrow::Cow::from(inner)),
             None      => (true, self.arg.to_string_lossy()),
         };
-        let arg_vec : Vec<u16> = self.arg.encode_wide().collect();
+        //let arg_vec : Vec<u16> = self.arg.encode_wide().collect();
         // 3 is the number of fields in the struct.
-        let mut state = serializer.serialize_struct("Arg", 8)?;
+        let mut state = serializer.serialize_struct("Arg", 6)?;
         state.serialize_field("arg", &arg)?;
         state.serialize_field("arg-lossy", &arg_lossy)?;
-        state.serialize_field("arg-utf16", &arg_vec)?;
+        //state.serialize_field("arg-utf16", &arg_vec)?;
         state.serialize_field("raw", &raw)?;
         state.serialize_field("raw-lossy", &raw_lossy)?;
-        state.serialize_field("raw-utf16", &self.raw)?;
+        //state.serialize_field("raw-utf16", &self.raw)?;
         state.serialize_field("raw-start", &self.range.start)?;
         state.serialize_field("raw-end", &self.range.end)?;
         state.end()
@@ -577,7 +577,7 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &Pri
         let my_json = serde_json::json!({
             "cmdline": &cmdline_u8,
             "cmdline-lossy": cmdline_lossy,
-            "cmdline-utf16": cmdline,
+            //"cmdline-utf16": cmdline,
             "args": parsed_args_list,
         });
         let mut stdout = io::stdout().lock();
