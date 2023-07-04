@@ -147,6 +147,8 @@ by me:
 by others:
 - https://github.com/mklement0/Native
 - https://github.com/gerardog/gsudo
+- https://github.com/yozhgoor/CreateProcessW (didn’t tested that yet)
+- https://github.com/clap-rs/clap
 
 ## License
 
