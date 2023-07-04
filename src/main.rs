@@ -565,27 +565,31 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
 
 fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str) -> io::Result<()>{
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
-    let cmdline_u8 = match cmdline_os_string.to_str() {
+    let (cmdline_lossy, cmdline_u8) = match cmdline_os_string.to_str() {
         Some(str) => {
-            println!("The command line was converted losslessly.");
-            std::borrow::Cow::from(str)
+            (false, std::borrow::Cow::from(str))
         },
         None => {
-            println!("The command line was converted lossy!");
-            cmdline_os_string.to_string_lossy()
+            (true, cmdline_os_string.to_string_lossy())
         }
     };
-    println!("The command line is put in quotes (»«). \
-              If those quotes are inside the command line, they are not escaped. \
-              The command line is: \n\
-              »{}«\n", cmdline_u8);
-
     if print_opts.json {
+        let my_json = serde_json::json!({
+            "cmdline": &cmdline_u8,
+            "cmdline-lossy": cmdline_lossy,
+            "cmdline-utf16": cmdline,
+            "args": parsed_args_list,
+        });
         let mut stdout = io::stdout().lock();
-        serde_json::to_writer_pretty(&mut stdout, parsed_args_list)?;
+        serde_json::to_writer_pretty(&mut stdout, &my_json)?;
         stdout.write_all(b"\n")?;
     }
     else {
+        // TODO: privide info about lossy or lossless
+        println!("The command line is put in quotes (»«). \
+                  If those quotes are inside the command line, they are not escaped. \
+                  The command line is: \n\
+                  »{}«\n", cmdline_u8);
         let mut n : usize = 0;
         for Arg {arg, range, raw, ..} in parsed_args_list {
             let (lossless_or_lossy, arg) = match arg.to_str() {
