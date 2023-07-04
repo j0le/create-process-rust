@@ -12,7 +12,7 @@ But many programs including `cmd.exe` and `msbuild.exe` do it differently.
 When working in a shell or command prompt, one has to think about the how the shell processes the input of the user and how it construct the command line, that it passes to [`CreateProcessW()`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw).
 `CreateProcessW()` is the low level function to create processes on Windows.
 
-For example the projects “[git for Windows](https://gitforwindows.org/)”, [MSYS2](https://www.msys2.org/) and [Cygwin](https://www.cygwin.com/) port the shell bash to windows.
+For example the projects “[git for Windows](https://gitforwindows.org/)”, [MSYS2](https://www.msys2.org/) and [Cygwin](https://www.cygwin.com/) port the shell [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) to windows.
 This ported bash works like this (simplified):
 
 - The user enters a command line
