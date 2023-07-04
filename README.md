@@ -136,6 +136,18 @@ cargo run -- --help
 
 Replace `cargo` with the path to the cargo executable.
 
+
+## Related projects
+
+by me:
+- https://github.com/j0le/process-starter
+- https://github.com/j0le/get-command-line
+- https://github.com/j0le/cpwd – cpwd – Copy the path of the current working directory/folder to the clipboard
+
+by others:
+- https://github.com/mklement0/Native
+- https://github.com/gerardog/gsudo
+
 ## License
 
 For lincense information see the file `LICENSE.txt`.
