@@ -874,3 +874,6 @@ fn create_process
 // 
 // Ideas:
 // - dont do array of numbers for utf16 in JSON, but instead to base64
+// - reinterpret the command line,
+//   for example the raw argument »hello" "world« becomes »"hello world"« and »--peter="gustav"« loses it’s quotes an becomes »--peter=gustav«.
+//   We could the also have --force-quotes
