@@ -55,6 +55,78 @@ struct Arg<'lifetime_of_slice> {
     number: usize,
 }
 
+impl<'lifetime_of_slice> Arg<'lifetime_of_slice> {
+    fn write_pretty_json_to_writer<W>(&self, mut writer: &mut W, indent: &str) -> io::Result<()>
+    where
+        W: io::Write + ?Sized,
+    {
+        let (arg_lossy, arg) = match self.arg.to_str() {
+            Some(inner) => (false, std::borrow::Cow::from(inner)),
+            None      => (true, self.arg.to_string_lossy()),
+        };
+        let raw_os_str = OsString::from_wide(self.raw);
+        let (raw_lossy, raw) = match raw_os_str.to_str() {
+            Some(inner) => (false, std::borrow::Cow::from(inner)),
+            None      => (true, self.arg.to_string_lossy()),
+        };
+        let arg_vec : Vec<u16> = self.arg.encode_wide().collect();
+
+
+        if false {
+            write!(&mut writer, "{indent}{{\n{indent}  \"arg\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(arg))?;
+
+            write!(&mut writer, ",\n{indent}  \"raw\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(raw))?;
+
+            write!(&mut writer, ",\n{indent}  \"arg-utf16\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(arg_vec))?;
+
+            write!(&mut writer, ",\n{indent}  \"raw-utf16\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(self.raw))?;
+
+            write!(&mut writer, ",\n{indent}  \"arg-lossy\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(arg_lossy))?;
+
+            write!(&mut writer, ",\n{indent}  \"raw-lossy\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(raw_lossy))?;
+
+            write!(&mut writer, ",\n{indent}  \"raw-start\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(self.range.start))?;
+
+            write!(&mut writer, ",\n{indent}  \"raw-end\": ", indent = &indent)?;
+            serde_json::to_writer(&mut writer, &serde_json::json!(self.range.start))?;
+
+            write!(&mut writer, ",\n{indent}}}", indent = &indent)?;
+        }
+        else {
+            write!(&mut writer,
+"{indent}{{
+{indent}  \"arg\": {},
+{indent}  \"raw\": {},
+{indent}  \"arg-utf16\": {},
+{indent}  \"raw-utf16\": {},
+{indent}  \"arg-lossy\": {},
+{indent}  \"raw-lossy\": {},
+{indent}  \"raw-start\": {},
+{indent}  \"raw-end\": {}
+{indent}}}",
+                &serde_json::json!(arg),
+                &serde_json::json!(raw),
+                &serde_json::json!(arg_vec),
+                &serde_json::json!(self.raw),
+                &serde_json::json!(arg_lossy),
+                &serde_json::json!(raw_lossy),
+                &serde_json::json!(self.range.start),
+                &serde_json::json!(self.range.end),
+                indent = &indent
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
 impl<'lifetime_of_slice> serde::Serialize for Arg<'lifetime_of_slice> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -565,7 +637,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
 
 fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str) -> io::Result<()>{
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
-    let (cmdline_lossy, cmdline_u8) = match cmdline_os_string.to_str() {
+    let (cmdline_lossy, cmdline_utf8) = match cmdline_os_string.to_str() {
         Some(str) => {
             (false, std::borrow::Cow::from(str))
         },
@@ -574,22 +646,36 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &Pri
         }
     };
     if print_opts.json {
-        let my_json = serde_json::json!({
-            "cmdline": &cmdline_u8,
-            "cmdline-lossy": cmdline_lossy,
-            //"cmdline-utf16": cmdline,
-            "args": parsed_args_list,
-        });
         let mut stdout = io::stdout().lock();
-        serde_json::to_writer_pretty(&mut stdout, &my_json)?;
-        stdout.write_all(b"\n")?;
+        write!(stdout,
+"{{
+  \"cmdline\": {},
+  \"cmdline-utf16\": {},
+  \"cmdline-lossy\": {},
+  \"args\": [
+",
+            serde_json::json!(cmdline_utf8),
+            serde_json::json!(cmdline),
+            serde_json::json!(cmdline_lossy),
+        )?;
+
+        let mut first = true;
+        for x in parsed_args_list {
+            if first {
+                first = false
+            } else {
+                stdout.write_all(b",\n")?;
+            }
+            x.write_pretty_json_to_writer(&mut stdout, "    ")?;
+        }
+        stdout.write_all(b"\n  ]\n}\n")?;
     }
     else {
         // TODO: privide info about lossy or lossless
         println!("The command line is put in quotes (»«). \
                   If those quotes are inside the command line, they are not escaped. \
                   The command line is: \n\
-                  »{}«\n", cmdline_u8);
+                  »{}«\n", cmdline_utf8);
         let mut n : usize = 0;
         for Arg {arg, range, raw, ..} in parsed_args_list {
             let (lossless_or_lossy, arg) = match arg.to_str() {
