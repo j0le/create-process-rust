@@ -777,7 +777,18 @@ fn main() -> Result<(), String>{
         },
         ProgramOpt::Str(str) => {
             if exec_options.prepend_program {
-                return Err("Error: \"--prepend-program\" is not implemented yet".to_owned());
+                match &new_cmdline {
+                    None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
+                    Some(old_cmd) => {
+                        // TODO check if `str` contains quotes
+                        let mut new_cmd = OsString::from("\"");
+                        new_cmd.push(OsString::from(&str));
+                        new_cmd.push(OsString::from("\" "));
+                        new_cmd.push(OsString::from(old_cmd));
+                        new_cmdline = Some(new_cmd);
+                        return Err("Error: \"--prepend-program\" is not implemented yet".to_owned());
+                    },
+                }
             }
             Some(Cow::from(str))
         },
