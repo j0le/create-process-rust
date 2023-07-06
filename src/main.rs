@@ -400,13 +400,13 @@ OPTIONS:
 
 
 PRINT_OPTIONS:
- 
+
   --json
     Output Data as JSON
 
   --silent
     Don't be verbose
-  
+
 
 ", arg0);
 }
@@ -611,7 +611,7 @@ fn experiment_with_serde_json() -> io::Result<()>{
         "command-line" : "\"hel\"lo world",
         "lossy": false,
         "command-line-utf-16": [1,2,3,4],
-        "args": 
+        "args":
         [
             {
                 "arg": "hello",
@@ -871,7 +871,7 @@ fn create_process
 // --cmd-line-from-stdin
 // --handle-first-in-rest-special    // handle the first arg in `<arg>...` with the special rule for argument zero
 // --only-print-rest                 // only print those arguments that come in `<arg>...`
-// 
+//
 // Ideas:
 // - dont do array of numbers for utf16 in JSON, but instead to base64
 // - reinterpret the command line,
