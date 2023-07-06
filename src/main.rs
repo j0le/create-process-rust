@@ -407,8 +407,12 @@ struct MainOptions{
     main_choice : MainChoice,
 }
 
-fn print_usage(arg0 : &str) {
-    println!("
+fn print_usage<W>(arg0 : &str, mut writer : &mut W)
+    -> io::Result<()>
+where
+    W: io::Write + ?Sized
+{
+    writeln!(&mut writer, "
 USAGE:
   \"{0}\" [<PRINT_OPTION>...] [--print-args-only <arg>...]
 
@@ -480,7 +484,7 @@ PRINT_OPTIONS:
     Don't be verbose
 
 
-", arg0);
+", arg0)
 }
 
 fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
@@ -635,7 +639,11 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     }
 }
 
-fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str) -> io::Result<()>{
+fn print_args<W>(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str, mut writer: &mut W)
+-> io::Result<()>
+where
+    W: io::Write + ?Sized
+{
     let cmdline_os_string : OsString = OsStringExt::from_wide(cmdline);
     let (cmdline_lossy, cmdline_utf8) = match cmdline_os_string.to_str() {
         Some(str) => {
@@ -672,10 +680,10 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &Pri
     }
     else {
         // TODO: privide info about lossy or lossless
-        println!("The command line is put in quotes (»«). \
+        writeln!(&mut writer, "The command line is put in quotes (»«). \
                   If those quotes are inside the command line, they are not escaped. \
                   The command line is: \n\
-                  »{}«\n", cmdline_utf8);
+                  »{}«\n", cmdline_utf8)?;
         let mut n : usize = 0;
         for Arg {arg, range, raw, ..} in parsed_args_list {
             let (lossless_or_lossy, arg) = match arg.to_str() {
@@ -684,8 +692,8 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &Pri
             };
             let raw = OsString::from_wide(raw);
             let raw = raw.to_string_lossy();
-            println!("Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
-                     n, range.start, range.end, lossless_or_lossy, arg, raw);
+            writeln!(&mut writer, "Argument {:2}, {:3} .. {:3}, {} »{}«, raw: »{}«",
+                     n, range.start, range.end, lossless_or_lossy, arg, raw)?;
             n += 1;
         }
     }
@@ -703,6 +711,23 @@ fn quote_or_null
     }
 }
 
+
+
+enum StdOutOrStdErr{
+    StdOut(std::io::Stdout),
+    StdErr(std::io::Stderr),
+}
+
+impl StdOutOrStdErr{
+    fn into_writer(&mut self) -> &mut dyn io::Write {
+        match self {
+            StdOutOrStdErr::StdOut(stdout) => stdout,
+            StdOutOrStdErr::StdErr(stderr) => stderr,
+        }
+    }
+}
+
+
 fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = get_command_line()?;
     let parsed_args_list : Vec<Arg<'static>> = parse_lp_cmd_line(cmdline, true);
@@ -714,26 +739,26 @@ fn main() -> Result<(), String>{
     let options : MainOptions = match get_options(cmdline, &parsed_args_list){
         Ok(options) => options,
         Err(msg) => {
-            println!("{}",msg);
-            print_usage(&arg0_or_default);
+            eprintln!("{}",msg);
+            print_usage(&arg0_or_default, &mut std::io::stderr()).map_err(|x| format!("Print usage failed with: {}", x.to_string()))?;
             return Err("bad option".to_owned());
         },
     };
 
     let exec_options : ExecOptions = match options.main_choice {
         MainChoice::PrintArgs => {
-            print_args(cmdline, &parsed_args_list, & options.print_opts, "").map_err(|error| error.to_string())?;
+            print_args(cmdline, &parsed_args_list, & options.print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())?;
             return Ok(());
         },
         MainChoice::Help => {
-            print_usage(&arg0_or_default);
+            print_usage(&arg0_or_default, &mut std::io::stdout()).map_err(|x| format!("Print usage failed with: {}", x.to_string()))?;
             return Ok(());
         },
         MainChoice::ExecOpts(opts) => opts,
     };
 
     if options.print_opts.print_args {
-        print_args(cmdline, &parsed_args_list, & options.print_opts, "").map_err(|error| error.to_string())?;
+        print_args(cmdline, &parsed_args_list, & options.print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())?;
     }
 
     if exec_options.strip_program && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
@@ -778,21 +803,29 @@ fn main() -> Result<(), String>{
         },
     };
 
+
+    let mut writer_wrapper: StdOutOrStdErr = if options.print_opts.print_args { StdOutOrStdErr::StdOut(io::stdout())} else { StdOutOrStdErr::StdErr(io::stderr()) } ;
+
     // from https://doc.rust-lang.org/std/option/ :
     //   as_deref converts from &Option<T> to Option<&T::Target>
     //
     // `T` in this case is `OsString` and `T::Target` should be `OsStr` or `&OsStr`.
+    writeln!(&mut writer_wrapper.into_writer(), "The program      (1st argument to CreateProcessW) is:   {}", quote_or_null((&program).as_deref()))
+        .map_err(|x| format!("Write failed with {}", x.to_string()))?;
+    writeln!(&mut writer_wrapper.into_writer(), "The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(new_cmdline.as_deref()))
+        .map_err(|x| format!("Write failed with {}", x.to_string()))?;
 
-    println!("The program      (1st argument to CreateProcessW) is:   {}", quote_or_null((&program).as_deref()));
-    println!("The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(new_cmdline.as_deref()));
+    writeln!(&mut writer_wrapper.into_writer(), "Execute process:\n")
+        .map_err(|x| format!("Write failed with {}", x.to_string()))?;
 
-    println!("Execute process:\n");
     let exit_code : u32 = create_process(program.as_deref(), new_cmdline.as_deref())?;
-    println!("\nThe exit code is {}", exit_code);
+    writeln!(&mut writer_wrapper.into_writer(), "\nThe exit code is {}", exit_code)
+        .map_err(|x| format!("Write failed with {}", x.to_string()))?;
+
 
     if false {
         loop {
-            print!(".");
+            write!(&mut writer_wrapper.into_writer(), ".").unwrap();
             io::stdout().flush().map_err(|_| "Failed to flush stdout")?;
             thread::sleep(time::Duration::from_millis(2000));
         }
@@ -866,12 +899,12 @@ fn create_process
 
     if ! process_information.hThread.is_invalid() {
         if !unsafe {CloseHandle(process_information.hThread)}.as_bool() {
-            println!("Warning: Closing thread handle failed.");
+            eprintln!("Warning: Closing thread handle failed.");
         }
         process_information.hThread = HANDLE::default();
     }
     else {
-        println!("Warning: Thread handle is invalid.");
+        eprintln!("Warning: Thread handle is invalid.");
     }
 
     if process_information.hProcess.is_invalid() {
