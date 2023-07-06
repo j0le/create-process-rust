@@ -692,37 +692,6 @@ fn print_args(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &Pri
     Ok(())
 }
 
-fn experiment_with_serde_json() -> io::Result<()>{
-    let my_json = serde_json::json!({
-        "command-line" : "\"hel\"lo world",
-        "lossy": false,
-        "command-line-utf-16": [1,2,3,4],
-        "args":
-        [
-            {
-                "arg": "hello",
-                "arg-lossy": false,
-                "raw": "\"hel\"lo",
-                "raw-lossy": false,
-                "utf16": [1,2],
-                "raw-utf16": [1,2],
-            },
-            {
-                "arg": "world",
-                "arg-raw": "world",
-                "arg-utf-16": [3,4],
-                "arg-raw-utf-16": [1,2],
-            }
-        ]
-    });
-
-    let mut stdout = io::stdout().lock();
-    serde_json::to_writer_pretty(&mut stdout, &my_json)?;
-    stdout.write_all(b"\n")?;
-    Ok(())
-}
-
-
 fn quote_or_null
     <S: AsRef<OsStr>>
     (opt: Option<S>)
@@ -741,8 +710,6 @@ fn main() -> Result<(), String>{
         Some(arg) => arg.arg.to_string_lossy(),
         None => std::borrow::Cow::from("create-process-rust"),
     };
-
-    //experiment_with_serde_json().map_err(|error| error.to_string())?;
 
     let options : MainOptions = match get_options(cmdline, &parsed_args_list){
         Ok(options) => options,
