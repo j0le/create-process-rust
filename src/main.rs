@@ -815,7 +815,7 @@ fn main() -> Result<(), String>{
     };
 
 
-    let mut writer_wrapper: StdOutOrStdErr = if options.print_opts.print_args { StdOutOrStdErr::StdOut(io::stdout())} else { StdOutOrStdErr::StdErr(io::stderr()) } ;
+    let mut writer_wrapper: StdOutOrStdErr = if options.print_opts.print_args { StdOutOrStdErr::StdErr(io::stderr())} else { StdOutOrStdErr::StdOut(io::stdout()) } ;
 
     // from https://doc.rust-lang.org/std/option/ :
     //   as_deref converts from &Option<T> to Option<&T::Target>
