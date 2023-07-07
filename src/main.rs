@@ -427,6 +427,7 @@ USAGE:
       --program-is-null
     }}
     {{
+      --cmd-line-is-null |
       --cmd-line-in-arg <cmdline> |
       --cmd-line-is-rest <arg>...
     }}
@@ -467,6 +468,9 @@ OPTIONS:
 
   --program-is-null
     The first argument to CreateProcessW is NULL.
+
+  --cmd-line-is-null
+    The second argument to CreateProcessW is NULL.
 
   --cmd-line-in-arg <cmdline>
     Specify the command line in one argument.
