@@ -768,23 +768,26 @@ struct EscapedArgZero<'a>{
     warning: Option<&'static str>,
 }
 
-fn escape_arg_zero<'a>(slice_utf16: &'a [u16])-> Result<EscapedArgZero<'a>, String> {
+fn escape_arg_zero<'a>(slice_utf16: &'a [u16], force_quotes: bool)-> Result<EscapedArgZero<'a>, String> {
     const BACKSLASH: u16 = b'\\' as u16;
     const QUOTE: u16 = b'"' as u16;
     const TAB: u16 = b'\t' as u16;
     const SPACE: u16 = b' ' as u16;
 
-    let mut whitespace_found : bool = false;
+    let mut add_quotes : bool = force_quotes;
     for u in slice_utf16 {
         match *u {
-            SPACE | TAB => whitespace_found = true,
+            SPACE | TAB => add_quotes = true,
             QUOTE => return Err("Quotes are not allowed in Argument zero".to_owned()),
             _ => {},
         }
 
     };
+    if slice_utf16.is_empty() {
+        add_quotes = true
+    }
     Ok(
-        if whitespace_found || slice_utf16.is_empty() {
+        if add_quotes {
             EscapedArgZero{
                 escaped: {
                     let mut vec_utf16 : Vec<u16> = std::vec::Vec::with_capacity(2usize + slice_utf16.len());
@@ -841,7 +844,7 @@ fn exec(
                     None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
                     Some(old_cmd) => {
                         let prog_vec: Vec<u16> = prog.encode_wide().collect();
-                        let escaped_arg_zero = escape_arg_zero(&prog_vec)?;
+                        let escaped_arg_zero = escape_arg_zero(&prog_vec, false)?;
                         if let Some(warning) = escaped_arg_zero.warning {
                             eprintln!("Warning: {}", warning);
                         }
