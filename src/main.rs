@@ -42,7 +42,6 @@ use windows::Win32::Foundation::{
 };
 
 use serde::{
-    Serialize,
     Serializer,
     ser::SerializeStruct,
 };
