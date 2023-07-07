@@ -750,20 +750,30 @@ fn main() -> Result<(), String>{
         },
     };
 
-    let exec_options : ExecOptions = match options.main_choice {
+    match options.main_choice {
         MainChoice::PrintArgs => {
-            print_args(cmdline, &parsed_args_list, & options.print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())?;
-            return Ok(());
+            print_args(cmdline, &parsed_args_list, & options.print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())
         },
         MainChoice::Help => {
-            print_usage(&arg0_or_default, &mut std::io::stdout()).map_err(|x| format!("Print usage failed with: {}", x.to_string()))?;
-            return Ok(());
+            print_usage(&arg0_or_default, &mut std::io::stdout()).map_err(|x| format!("Print usage failed with: {}", x.to_string()))
         },
-        MainChoice::ExecOpts(opts) => opts,
-    };
+        MainChoice::ExecOpts(opts) => {
+            exec(opts, options.print_opts, cmdline, parsed_args_list)
+        },
+    }
+}
 
-    if options.print_opts.print_args {
-        print_args(cmdline, &parsed_args_list, & options.print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())?;
+fn exec(
+    exec_options: ExecOptions,
+    print_opts: PrintOptions,
+    cmdline: &'static [u16],
+    parsed_args_list : Vec<Arg<'static>>,
+)
+    -> Result<(), String>
+{
+
+    if print_opts.print_args {
+        print_args(cmdline, &parsed_args_list, &print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())?;
     }
 
     if exec_options.strip_program && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
@@ -820,7 +830,7 @@ fn main() -> Result<(), String>{
     };
 
 
-    let mut writer_wrapper: StdOutOrStdErr = if options.print_opts.print_args { StdOutOrStdErr::StdErr(io::stderr())} else { StdOutOrStdErr::StdOut(io::stdout()) } ;
+    let mut writer_wrapper: StdOutOrStdErr = if print_opts.print_args { StdOutOrStdErr::StdErr(io::stderr())} else { StdOutOrStdErr::StdOut(io::stdout()) } ;
 
     // from https://doc.rust-lang.org/std/option/ :
     //   as_deref converts from &Option<T> to Option<&T::Target>
