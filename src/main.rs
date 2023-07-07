@@ -849,6 +849,7 @@ fn exec(
                             eprintln!("Warning: {}", warning);
                         }
                         let mut new_cmd = OsString::from_wide(&escaped_arg_zero.escaped);
+                        new_cmd.push(OsString::from(" "));
                         new_cmd.push(OsString::from(old_cmd));
                         new_cmdline = Some(new_cmd);
                     },
