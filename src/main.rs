@@ -660,15 +660,16 @@ where
     if print_opts.json {
         let mut stdout = io::stdout().lock();
         write!(stdout,
-"{{
-  \"cmdline\": {},
-  \"cmdline-utf16\": {},
-  \"cmdline-lossy\": {},
-  \"args\": [
+"{indent}{{
+{indent}  \"cmdline\": {},
+{indent}  \"cmdline-utf16\": {},
+{indent}  \"cmdline-lossy\": {},
+{indent}  \"args\": [
 ",
             serde_json::json!(cmdline_utf8),
             serde_json::json!(cmdline),
             serde_json::json!(cmdline_lossy),
+            indent = indent
         )?;
 
         let mut first = true;
@@ -678,9 +679,9 @@ where
             } else {
                 stdout.write_all(b",\n")?;
             }
-            x.write_pretty_json_to_writer(&mut stdout, "    ")?;
+            x.write_pretty_json_to_writer(&mut stdout, &(indent.to_owned() + "    "))?;
         }
-        stdout.write_all(b"\n  ]\n}\n")?;
+        write!(stdout,"\n{indent}  ]\n{indent}}}\n", indent = indent)?;
     }
     else {
         // TODO: privide info about lossy or lossless
