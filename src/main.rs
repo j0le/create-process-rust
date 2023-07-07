@@ -456,7 +456,6 @@ OPTIONS:
   --prepend-program
     Prepend the program to the command line.
     This is only valid with `--program <program>`.
-    This is not supported right now.
 
   --program-from-cmd-line
     Parse the program from the command line given by a `--cmd-line-*` option.
