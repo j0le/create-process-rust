@@ -763,6 +763,51 @@ fn main() -> Result<(), String>{
     }
 }
 
+struct EscapedArgZero<'a>{
+    escaped : Cow<'a, [u16]>,
+    warning: Option<&'static str>,
+}
+
+fn escape_arg_zero<'a>(slice_utf16: &'a [u16])-> Result<EscapedArgZero<'a>, String> {
+    const BACKSLASH: u16 = b'\\' as u16;
+    const QUOTE: u16 = b'"' as u16;
+    const TAB: u16 = b'\t' as u16;
+    const SPACE: u16 = b' ' as u16;
+
+    let mut whitespace_found : bool = false;
+    for u in slice_utf16 {
+        match *u {
+            SPACE | TAB => whitespace_found = true,
+            QUOTE => return Err("Quotes are not allowed in Argument zero".to_owned()),
+            _ => {},
+        }
+
+    };
+    Ok(
+        if whitespace_found || slice_utf16.is_empty() {
+            EscapedArgZero{
+                escaped: {
+                    let mut vec_utf16 : Vec<u16> = std::vec::Vec::with_capacity(2usize + slice_utf16.len());
+                    vec_utf16.push(QUOTE);
+                    vec_utf16.extend_from_slice(slice_utf16);
+                    vec_utf16.push(QUOTE);
+                    std::borrow::Cow::from(vec_utf16)
+                },
+                warning: match slice_utf16.last() {
+                    Some(&BACKSLASH) => Some("Escaped arg zero ends with backslash and quote: »\\\"«."),
+                    _ => None,
+                },
+            }
+        }
+        else{
+            EscapedArgZero{
+                escaped: std::borrow::Cow::from(slice_utf16),
+                warning: None,
+            }
+        }
+    )
+}
+
 fn exec(
     exec_options: ExecOptions,
     print_opts: PrintOptions,
@@ -790,22 +835,23 @@ fn exec(
         ProgramOpt::Null => {
             None
         },
-        ProgramOpt::Str(str) => {
+        ProgramOpt::Str(prog) => {
             if exec_options.prepend_program {
                 match &new_cmdline {
                     None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
                     Some(old_cmd) => {
-                        // TODO check if `str` contains quotes
-                        let mut new_cmd = OsString::from("\"");
-                        new_cmd.push(OsString::from(&str));
-                        new_cmd.push(OsString::from("\" "));
+                        let prog_vec: Vec<u16> = prog.encode_wide().collect();
+                        let escaped_arg_zero = escape_arg_zero(&prog_vec)?;
+                        if let Some(warning) = escaped_arg_zero.warning {
+                            eprintln!("Warning: {}", warning);
+                        }
+                        let mut new_cmd = OsString::from_wide(&escaped_arg_zero.escaped);
                         new_cmd.push(OsString::from(old_cmd));
                         new_cmdline = Some(new_cmd);
-                        return Err("Error: \"--prepend-program\" is not implemented yet".to_owned());
                     },
                 }
             }
-            Some(Cow::from(str))
+            Some(Cow::from(prog))
         },
         ProgramOpt::FromCmdLine => {
             let cmdline_os_str: &OsStr = match &new_cmdline{
