@@ -838,9 +838,9 @@ fn exec(
         },
         ProgramOpt::Str(prog) => {
             if exec_options.prepend_program {
-                match new_cmdline {
-                    None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
-                    Some(ref old_cmd) => {
+                match &new_cmdline {
+                    &None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
+                    &Some(ref old_cmd) => {
                         let prog_vec: Vec<u16> = prog.encode_wide().collect();
                         let escaped_arg_zero = escape_arg_zero(&prog_vec, false)?;
                         if let Some(warning) = escaped_arg_zero.warning {
