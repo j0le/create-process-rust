@@ -55,7 +55,7 @@ struct Arg<'lifetime_of_slice> {
 }
 
 impl<'lifetime_of_slice> Arg<'lifetime_of_slice> {
-    fn write_pretty_json_to_writer<W>(&self, mut writer: &mut W, indent: &str) -> io::Result<()>
+    fn write_pretty_json_to_writer<W>(self: &Self, mut writer: &mut W, indent: &str) -> io::Result<()>
     where
         W: io::Write + ?Sized,
     {
@@ -838,9 +838,9 @@ fn exec(
         },
         ProgramOpt::Str(prog) => {
             if exec_options.prepend_program {
-                match &new_cmdline {
+                match new_cmdline {
                     None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
-                    Some(old_cmd) => {
+                    Some(ref old_cmd) => {
                         let prog_vec: Vec<u16> = prog.encode_wide().collect();
                         let escaped_arg_zero = escape_arg_zero(&prog_vec, false)?;
                         if let Some(warning) = escaped_arg_zero.warning {
