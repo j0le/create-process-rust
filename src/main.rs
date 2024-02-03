@@ -46,6 +46,7 @@ use serde::{
     ser::SerializeStruct,
 };
 
+use base64::{Engine as _, engine::general_purpose};
 
 struct Arg<'lifetime_of_slice> {
     arg: OsString,
@@ -424,7 +425,7 @@ USAGE:
     [<PRINT_OPTION>...]
     [--print-args]
     {{
-      {{ --program <program> [--prepend-program] }} |
+      {{ {{ --program <program> | --program-utf16le-base64 <encoded-program> }} [--prepend-program] }} |
       {{ --program-from-cmd-line [--strip-program] }} |
       --program-is-null
     }}
@@ -456,9 +457,12 @@ OPTIONS:
   --program <program>
     Specify the path to the program to start.
 
+  --program-utf16le-base64 <encoded-program>
+    Specify the path to the program to start as an base64-encoded UTF-16 little endian string.
+
   --prepend-program
     Prepend the program to the command line.
-    This is only valid with `--program <program>`.
+    This is only valid with `--program* <program>`, where `*` can be the empty string or `-utf16le-base64`.
 
   --program-from-cmd-line
     Parse the program from the command line given by a `--cmd-line-*` option.
@@ -501,6 +505,11 @@ fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
         None => &[],
     }
 }
+
+//fn decode_utf16le_base64(input: &OsStr) -> OsString {
+//    input.encode_wide
+//
+//}
 
 fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String> {
     let mut args_iter = args.iter();
