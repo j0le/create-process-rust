@@ -411,7 +411,10 @@ fn print_usage<W>(arg0 : &str, mut writer : &mut W)
 where
     W: io::Write + ?Sized
 {
+    let dirty_text = if env!("GIT_DIRTY") == "true" {"(working tree dirty)"}else {""};
     writeln!(&mut writer, "
+create-process-rust, version {1} {2}
+
 USAGE:
   \"{0}\" [<PRINT_OPTION>...] [--print-args-only <arg>...]
 
@@ -486,7 +489,7 @@ PRINT_OPTIONS:
     Don't be verbose
 
 
-", arg0)
+", arg0, env!("GIT_HASH"), dirty_text)
 }
 
 fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
