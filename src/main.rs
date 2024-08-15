@@ -1136,3 +1136,4 @@ fn create_process
 // - reinterpret the command line,
 //   for example the raw argument »hello" "world« becomes »"hello world"« and »--peter="gustav"« loses it’s quotes an becomes »--peter=gustav«.
 //   We could the also have --force-quotes
+// - Resolve path of program using the environment variable PATH
