@@ -738,8 +738,14 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     }
 }
 
-fn print_args<W>(cmdline: &[u16], parsed_args_list: &Vec<Arg<'_>>, print_opts: &PrintOptions, indent: &str, mut writer: &mut W)
--> io::Result<()>
+fn print_args<W>(
+    cmdline: &[u16],
+    parsed_args_list: &Vec<Arg<'_>>,
+    print_opts: &PrintOptions,
+    indent: &str,
+    print_header: bool,
+    mut writer: &mut W
+) -> io::Result<()>
 where
     W: io::Write + ?Sized
 {
@@ -780,10 +786,12 @@ where
     }
     else {
         // TODO: privide info about lossy or lossless
-        writeln!(&mut writer, "The command line is put in quotes (»«). \
-                  If those quotes are inside the command line, they are not escaped. \
-                  The command line is: \n\
-                  »{}«\n", cmdline_utf8)?;
+        if print_header {
+            writeln!(&mut writer, "The command line is put in quotes (»«). \
+                     If those quotes are inside the command line, they are not escaped. \
+                     The command line is: \n\
+                     »{}«\n", cmdline_utf8)?;
+        }
         let mut n : usize = 0;
         for Arg {arg, range, raw, ..} in parsed_args_list {
             let (lossless_or_lossy, arg) = match arg.to_str() {
@@ -842,7 +850,7 @@ fn main() -> Result<(), String>{
             eprintln!("{}\n",msg);
             print_args(cmdline, &parsed_args_list,
                        &PrintOptions { json: false, silent: false, print_args: true },
-                       "", &mut std::io::stderr())
+                       "", true, &mut std::io::stderr())
                 .map_err(|error| error.to_string())?;
 
             //print_usage(&arg0_or_default, &mut std::io::stderr())
@@ -853,7 +861,7 @@ fn main() -> Result<(), String>{
 
     match options.main_choice {
         MainChoice::PrintArgs => {
-            print_args(cmdline, &parsed_args_list, & options.print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())
+            print_args(cmdline, &parsed_args_list, & options.print_opts, "", true, &mut std::io::stdout()).map_err(|error| error.to_string())
         },
         MainChoice::Help => {
             print_usage(&arg0_or_default, &mut std::io::stdout()).map_err(|x| format!("Print usage failed with: {}", x.to_string()))
@@ -918,7 +926,7 @@ fn print_inner_cmdline(cmdline_opt: &Option<OsString>, print_opts: &PrintOptions
             let cmdline_vec = cmdline_str.encode_wide().collect_vec();
             let cmdline_slice = &cmdline_vec[..];
             let inner_parsed_args_list = parse_lp_cmd_line(cmdline_slice, true);
-            print_args(cmdline_slice, &inner_parsed_args_list, &print_opts, "", &mut std::io::stdout())
+            print_args(cmdline_slice, &inner_parsed_args_list, &print_opts, "", false, &mut std::io::stdout())
                 .map_err(|error| error.to_string())?;
         },
         _ => {}
@@ -936,7 +944,7 @@ fn exec(
 {
 
     if print_opts.print_args {
-        print_args(cmdline, &parsed_args_list, &print_opts, "", &mut std::io::stdout())
+        print_args(cmdline, &parsed_args_list, &print_opts, "", true, &mut std::io::stdout())
             .map_err(|error| error.to_string())?;
     }
 
