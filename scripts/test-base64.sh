@@ -24,4 +24,4 @@ MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run --program-utf16le-base64 "${b
 printf '%s\n' '------------------------'
 
 # negativ test
-! MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run --program-utf16le-base64 "öäü" --prepend-program --cmd-line-in-arg '/c (echo hello)'
+! MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run --program-utf16le-base64 "öäü" --prepend-program --cmd-line-in-arg '/c (echo hello)' # 2>/dev/null
