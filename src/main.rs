@@ -46,7 +46,7 @@ use serde::{
     ser::SerializeStruct,
 };
 
-use base64::{Engine as _, engine::general_purpose};
+use base64::Engine as _;
 
 struct Arg<'lifetime_of_slice> {
     arg: OsString,
@@ -511,10 +511,39 @@ fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
     }
 }
 
-//fn decode_utf16le_base64(input: &OsStr) -> OsString {
-//    input.encode_wide
-//
-//}
+fn decode_utf16le_base64(input: &OsStr) -> Result<OsString,String> {
+    match input.to_str() {
+        None => Err("cannot convert to UTF-8".to_string()),
+        Some(utf8) => {
+            let decode_result = base64::engine::general_purpose::STANDARD.decode(utf8);
+            match decode_result {
+                Err(_) => Err("cannot interpret input as base64".to_string()),
+                Ok(vec) => {
+                    if vec.len() % 2 != 0 {
+                        return Err("decoded base64 does not result in an even number of bytes".to_string());
+                    }
+                    let mut vec16 : Vec<u16> = std::vec::Vec::with_capacity(vec.len()/2);
+                    let mut uint16: u16 = 0u16;
+                    let mut even : bool = true;
+                    // I don't know, if I do it correctly for little endian, but we'll see.
+                    // I think, we must respect the byte ordering of the CPU architecture.
+                    // Therefor we must call a function to get the order.
+                    for uint8 in vec {
+                        if even {
+                            uint16 = uint8.into();
+                        } else {
+                            uint16 = uint16 | u16::from(uint8).overflowing_shl(8).0;
+                            vec16.push(uint16)
+                        }
+                        even = !even;
+                    }
+                    Ok(OsString::from_wide(&vec16[..]))
+                }
+            }
+        }
+    }
+
+}
 
 fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String> {
     let mut args_iter = args.iter();
@@ -531,6 +560,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     }
 
     let opt_program : &OsStr = OsStr::new("--program");
+    let opt_program_utf16le_base64 : &OsStr = OsStr::new("--program-utf16le-base64");
     let opt_program_from_cmd_line : &OsStr = OsStr::new("--program-from-cmd-line");
     let opt_program_is_null : &OsStr = OsStr::new("--program-is-null");
     let opt_cmd_line_in_arg : &OsStr = OsStr::new("--cmd-line-in-arg");
@@ -602,6 +632,20 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                 }
                 match args_iter.next() {
                     Some(next_arg) => program = Some(ProgramOpt::Str(next_arg.arg.clone())),
+                    None => return Err(format!("missing argument for option:\n  {}", &arg)),
+                }
+            },
+            x if x == opt_program_utf16le_base64 => {
+                if program.is_some() {
+                    return Err(format!("bad option, program is already initilaized:\n  {}", &arg));
+                }
+                match args_iter.next() {
+                    Some(next_arg) => {
+                        match decode_utf16le_base64(&next_arg.arg) {
+                            Ok(p) => program = Some(ProgramOpt::Str(p)),
+                            Err(err_str) => return Err(err_str),
+                        }
+                    },
                     None => return Err(format!("missing argument for option:\n  {}", &arg)),
                 }
             },
