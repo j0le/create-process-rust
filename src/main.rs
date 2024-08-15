@@ -387,6 +387,7 @@ struct ExecOptions{
     cmdline : Option<OsString>,
     prepend_program : bool,
     strip_program : bool,
+    dry_run : bool,
 }
 
 struct PrintOptions{
@@ -424,6 +425,7 @@ USAGE:
   \"{0}\"
     [<PRINT_OPTION>...]
     [--print-args]
+    [--dry-run]
     {{
       {{ {{ --program <program> | --program-utf16le-base64 <encoded-program> }} [--prepend-program] }} |
       {{ --program-from-cmd-line [--strip-program] }} |
@@ -450,6 +452,9 @@ OPTIONS:
 
   --print-args
     Print all the arguments to this program.
+
+  --dry-run
+    Don’t actually execute the program.
 
   --print-args-only
     Print all arguments to this program and do nothing else.
@@ -544,6 +549,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     ];
     let opt_print_args : &OsStr = OsStr::new("--print-args");
     let opt_print_args_only : &OsStr = OsStr::new("--print-args-only");
+    let opt_dry_run : &OsStr = OsStr::new("--dry-run");
     let opt_json : &OsStr = OsStr::new("--json");
     let opt_silent : &OsStr = OsStr::new("--silent");
 
@@ -551,10 +557,14 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     let mut cmdline_opt : Option<Option<OsString>> = None;
     let mut prepend_program : bool = false;
     let mut strip_program : bool = false;
+    let mut dry_run : bool = false;
 
     let mut only_print_opts_thus_far = true;
     while let Some(arg) = args_iter.next() {
         match arg.arg.as_os_str() {
+            x if x == opt_dry_run => {
+                dry_run = true;
+            }
             x if x == opt_prepend_program => {
                 prepend_program = true;
             },
@@ -646,7 +656,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                 MainOptions{
                     print_opts,
                     main_choice : MainChoice::ExecOpts(
-                        ExecOptions{ program, cmdline, prepend_program, strip_program, }
+                        ExecOptions{ program, cmdline, prepend_program, strip_program, dry_run, }
                     )
                 }
             ),
@@ -904,7 +914,15 @@ fn exec(
     writeln!(&mut writer_wrapper.into_writer(), "Execute process:\n")
         .map_err(|x| format!("Write failed with {}", x.to_string()))?;
 
-    let exit_code : u32 = create_process(program.as_deref(), new_cmdline.as_deref())?;
+    let exit_code : u32 =
+        if ! exec_options.dry_run {
+            create_process(program.as_deref(), new_cmdline.as_deref())?
+        } else {
+            writeln!(&mut writer_wrapper.into_writer(), "\nSkipping execution because of --dry-run.")
+                .map_err(|x| format!("Write failed with {}", x.to_string()))?;
+            0
+        };
+
     writeln!(&mut writer_wrapper.into_writer(), "\nThe exit code is {}", exit_code)
         .map_err(|x| format!("Write failed with {}", x.to_string()))?;
 
