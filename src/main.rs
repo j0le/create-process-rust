@@ -434,7 +434,7 @@ USAGE:
     {{
       --cmd-line-is-null |
       --cmd-line-in-arg <cmdline> |
-      --cmd-line-utf16-base64 |
+      --cmd-line-utf16le-base64 <encoded-cmd-line> |
       --cmd-line-is-rest <arg>...
     }}
 
@@ -486,7 +486,7 @@ OPTIONS:
   --cmd-line-in-arg <cmdline>
     Specify the command line in one argument.
 
-  --cmd-line-utf16-base64 <encoded-cmd-line>
+  --cmd-line-utf16le-base64 <encoded-cmd-line>
     Specify the command line as an base64-encoded UTF-16 little endian string.
 
   --cmd-line-is-rest <arg>...
