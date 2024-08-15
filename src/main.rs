@@ -434,6 +434,7 @@ USAGE:
     {{
       --cmd-line-is-null |
       --cmd-line-in-arg <cmdline> |
+      --cmd-line-utf16-base64 |
       --cmd-line-is-rest <arg>...
     }}
 
@@ -484,6 +485,9 @@ OPTIONS:
 
   --cmd-line-in-arg <cmdline>
     Specify the command line in one argument.
+
+  --cmd-line-utf16-base64 <encoded-cmd-line>
+    Specify the command line as an base64-encoded UTF-16 little endian string.
 
   --cmd-line-is-rest <arg>...
     Use the rest of the command line as new command line.
@@ -564,6 +568,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     let opt_program_from_cmd_line : &OsStr = OsStr::new("--program-from-cmd-line");
     let opt_program_is_null : &OsStr = OsStr::new("--program-is-null");
     let opt_cmd_line_in_arg : &OsStr = OsStr::new("--cmd-line-in-arg");
+    let opt_cmd_line_utf16le_base64 : &OsStr = OsStr::new("--cmd-line-utf16le-base64");
     let opt_cmd_line_is_rest : &OsStr = OsStr::new("--cmd-line-is-rest");
     let opt_cmd_line_is_null : &OsStr = OsStr::new("--cmd-line-is-null");
     let opt_prepend_program : &OsStr = OsStr::new("--prepend-program");
@@ -667,6 +672,20 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                 }
                 match args_iter.next() {
                     Some(next_arg) => cmdline_opt = Some(Some(next_arg.arg.clone())),
+                    None => return Err(format!("missing argument for option:\n  {}", &arg)),
+                }
+            },
+            x if x == opt_cmd_line_utf16le_base64 => {
+                if cmdline_opt.is_some() {
+                    return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
+                }
+                match args_iter.next() {
+                    Some(next_arg) => {
+                        match decode_utf16le_base64(&next_arg.arg) {
+                            Ok(p) => cmdline_opt = Some(Some(p)),
+                            Err(err_str) => return Err(format!("bad argument for the following option: {}\n {}\nbad argument:\n {}", &err_str, &arg, &next_arg)),
+                        }
+                    },
                     None => return Err(format!("missing argument for option:\n  {}", &arg)),
                 }
             },
