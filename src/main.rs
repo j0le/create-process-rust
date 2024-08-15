@@ -1004,7 +1004,7 @@ fn exec(
     };
 
 
-    let mut writer_wrapper: StdOutOrStdErr = if print_opts.print_args { StdOutOrStdErr::StdErr(io::stderr())} else { StdOutOrStdErr::StdOut(io::stdout()) } ;
+    let mut writer_wrapper: StdOutOrStdErr = if print_opts.print_args || exec_options.split_and_print_inner_cmdline { StdOutOrStdErr::StdErr(io::stderr())} else { StdOutOrStdErr::StdOut(io::stdout()) } ;
 
     // from https://doc.rust-lang.org/std/option/ :
     //   as_deref converts from &Option<T> to Option<&T::Target>
