@@ -643,7 +643,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                     Some(next_arg) => {
                         match decode_utf16le_base64(&next_arg.arg) {
                             Ok(p) => program = Some(ProgramOpt::Str(p)),
-                            Err(err_str) => return Err(err_str),
+                            Err(err_str) => return Err(format!("bad argument for the following option: {}\n {}\nbad argument:\n {}", &err_str, &arg, &next_arg)),
                         }
                     },
                     None => return Err(format!("missing argument for option:\n  {}", &arg)),
