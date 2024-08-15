@@ -19,4 +19,4 @@ printf '\n'
 
 cpr="${script_dir}/../cpr.exe"
 
-"${cpr}" --dry-run --program-utf16le-base64 "${base64_path}" --prepend-program --cmd-line-in-arg '/c (echo hello)'
+MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run --program-utf16le-base64 "${base64_path}" --prepend-program --cmd-line-in-arg '/c (echo hello)'
