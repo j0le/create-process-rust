@@ -28,6 +28,7 @@ use std::{
     time,
 };
 
+use itertools::Itertools;
 use windows::Win32::System::Environment;
 use windows::Win32::System::Threading as WinThreading;
 use windows::core::{
@@ -388,6 +389,7 @@ struct ExecOptions{
     prepend_program : bool,
     strip_program : bool,
     dry_run : bool,
+    split_and_print_inner_cmdline: bool,
 }
 
 struct PrintOptions{
@@ -437,6 +439,7 @@ USAGE:
       --cmd-line-utf16le-base64 <encoded-cmd-line> |
       --cmd-line-is-rest <arg>...
     }}
+    [--split-and-print-inner-cmdline]
 
 
 DESCRIPTION:
@@ -491,6 +494,9 @@ OPTIONS:
 
   --cmd-line-is-rest <arg>...
     Use the rest of the command line as new command line.
+
+  --split-and-print-inner-cmdline
+    Split the command line assembled from the value of a `--cmd-line-*` option and other options into arguments and print those arguments.
 
 
 PRINT_OPTIONS:
@@ -573,6 +579,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     let opt_cmd_line_is_null : &OsStr = OsStr::new("--cmd-line-is-null");
     let opt_prepend_program : &OsStr = OsStr::new("--prepend-program");
     let opt_strip_program : &OsStr = OsStr::new("--strip-program");
+    let opt_split_and_print_inner_cmdline : &OsStr = OsStr::new("--split-and-print-inner-cmdline");
     let opts_help : Vec<&OsStr> = vec![
         OsStr::new("--help"),
         OsStr::new("-help"),
@@ -593,6 +600,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     let mut prepend_program : bool = false;
     let mut strip_program : bool = false;
     let mut dry_run : bool = false;
+    let mut split_and_print_inner_cmdline = false;
 
     let mut only_print_opts_thus_far = true;
     while let Some(arg) = args_iter.next() {
@@ -605,6 +613,9 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
             },
             x if x == opt_strip_program => {
                 strip_program = true;
+            },
+            x if x == opt_split_and_print_inner_cmdline => {
+                split_and_print_inner_cmdline = true;
             },
             x if x == opt_print_args => {
                 print_opts.print_args = true;
@@ -719,7 +730,8 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                 MainOptions{
                     print_opts,
                     main_choice : MainChoice::ExecOpts(
-                        ExecOptions{ program, cmdline, prepend_program, strip_program, dry_run, }
+                        ExecOptions{ program, cmdline, prepend_program,
+                                     strip_program, dry_run, split_and_print_inner_cmdline }
                     )
                 }
             ),
@@ -900,6 +912,20 @@ fn escape_arg_zero<'a>(slice_utf16: &'a [u16], force_quotes: bool)-> Result<Esca
     )
 }
 
+fn print_inner_cmdline(cmdline_opt: &Option<OsString>, print_opts: &PrintOptions) -> Result<(), String> {
+    match &cmdline_opt {
+        Some(cmdline_str)  => {
+            let cmdline_vec = cmdline_str.encode_wide().collect_vec();
+            let cmdline_slice = &cmdline_vec[..];
+            let inner_parsed_args_list = parse_lp_cmd_line(cmdline_slice, true);
+            print_args(cmdline_slice, &inner_parsed_args_list, &print_opts, "", &mut std::io::stdout())
+                .map_err(|error| error.to_string())?;
+        },
+        _ => {}
+    };
+    Ok(())
+}
+
 fn exec(
     exec_options: ExecOptions,
     print_opts: PrintOptions,
@@ -910,7 +936,8 @@ fn exec(
 {
 
     if print_opts.print_args {
-        print_args(cmdline, &parsed_args_list, &print_opts, "", &mut std::io::stdout()).map_err(|error| error.to_string())?;
+        print_args(cmdline, &parsed_args_list, &print_opts, "", &mut std::io::stdout())
+            .map_err(|error| error.to_string())?;
     }
 
     if exec_options.strip_program && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
@@ -977,8 +1004,15 @@ fn exec(
     // `T` in this case is `OsString` and `T::Target` should be `OsStr` or `&OsStr`.
     writeln!(&mut writer_wrapper.into_writer(), "The program      (1st argument to CreateProcessW) is:   {}", quote_or_null((&program).as_deref()))
         .map_err(|x| format!("Write failed with {}", x.to_string()))?;
-    writeln!(&mut writer_wrapper.into_writer(), "The command line (2nd argument to CreateProcessW) is:   {}", quote_or_null(new_cmdline.as_deref()))
-        .map_err(|x| format!("Write failed with {}", x.to_string()))?;
+    writeln!(
+             &mut writer_wrapper.into_writer(),
+             "The command line (2nd argument to CreateProcessW) is:   {}",
+             quote_or_null(new_cmdline.as_deref())
+        ).map_err(|x| format!("Write failed with {}", x.to_string()))?;
+
+    if exec_options.split_and_print_inner_cmdline {
+        print_inner_cmdline(&new_cmdline,&print_opts)?;
+    }
 
     writeln!(&mut writer_wrapper.into_writer(), "Execute process:\n")
         .map_err(|x| format!("Write failed with {}", x.to_string()))?;
