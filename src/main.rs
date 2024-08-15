@@ -808,8 +808,14 @@ fn main() -> Result<(), String>{
     let options : MainOptions = match get_options(cmdline, &parsed_args_list){
         Ok(options) => options,
         Err(msg) => {
-            eprintln!("{}",msg);
-            print_usage(&arg0_or_default, &mut std::io::stderr()).map_err(|x| format!("Print usage failed with: {}", x.to_string()))?;
+            eprintln!("{}\n",msg);
+            print_args(cmdline, &parsed_args_list,
+                       &PrintOptions { json: false, silent: false, print_args: true },
+                       "", &mut std::io::stderr())
+                .map_err(|error| error.to_string())?;
+
+            //print_usage(&arg0_or_default, &mut std::io::stderr())
+            //    .map_err(|x| format!("Print usage failed with: {}", x.to_string()))?;
             return Err("bad option".to_owned());
         },
     };
