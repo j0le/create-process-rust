@@ -25,7 +25,6 @@ base64_path="$(printf '%s' "${win_path}" | encode)"
 printf '%s' "${win_path}" | encode | decode
 printf '\n'
 
-cpr="${script_dir}/../cpr.exe"
 
 cmdline='/c (echo hello)'
 base64_cmdline="$(printf '%s' "${cmdline}" | encode)"
@@ -33,7 +32,11 @@ printf '%s\n%s\n' "${cmdline}" "${base64_cmdline}"
 
 printf '%s\n' '------------------------'
 
-MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run \
+cpr_fn(){
+	MSYS_NO_PATHCONV=1 "${script_dir}/../target/debug/create-process-rust.exe" "${@}"
+}
+
+cpr_fn --print-args --dry-run \
 	--program-utf16le-base64 "${base64_path}" \
 	--prepend-program \
 	--cmd-line-utf16le-base64 "${base64_cmdline}"
@@ -41,6 +44,6 @@ MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run \
 printf '%s\n' '------------------------'
 
 # negativ test
-! MSYS_NO_PATHCONV=1 "${cpr}" --print-args --dry-run \
+! cpr_fn --print-args --dry-run \
 	--program-utf16le-base64 "öäü" \
 	--prepend-program --cmd-line-in-arg "${cmdline}" # 2>/dev/null
