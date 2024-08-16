@@ -872,8 +872,6 @@ fn main() -> Result<(), String>{
                        "", true, &mut std::io::stderr())
                 .map_err(|error| error.to_string())?;
 
-            //print_usage(&arg0_or_default, &mut std::io::stderr())
-            //    .map_err(|x| format!("Print usage failed with: {}", x.to_string()))?;
             return Err("bad option".to_owned());
         },
     };
