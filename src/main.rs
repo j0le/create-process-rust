@@ -17,6 +17,7 @@
 
 use std::{
     borrow::Cow,
+    error::Error,
     ffi::OsStr,
     ffi::OsString,
     fmt,
@@ -43,6 +44,7 @@ use windows::Win32::Foundation::{
 };
 
 use serde::{
+    Deserialize,
     Serializer,
     ser::SerializeStruct,
 };
@@ -835,6 +837,18 @@ impl StdOutOrStdErr{
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct Args {
+    args: Vec<String>,
+}
+
+fn exeperiment_with_stdin() -> Result<Args, String> {
+    let stdin_lock = io::stdin().lock();
+    let mut de = serde_json::Deserializer::from_reader(stdin_lock);
+    let args = Args::deserialize(&mut de).map_err(|error| error.to_string())?;
+
+    Ok(args)
+}
 
 fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = get_command_line()?;
@@ -843,6 +857,11 @@ fn main() -> Result<(), String>{
         Some(arg) => arg.arg.to_string_lossy(),
         None => std::borrow::Cow::from("create-process-rust"),
     };
+
+    let args: Args = exeperiment_with_stdin()?;
+    for arg in args.args{
+        println!("arg: {}", arg);
+    }
 
     let options : MainOptions = match get_options(cmdline, &parsed_args_list){
         Ok(options) => options,
