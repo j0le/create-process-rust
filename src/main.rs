@@ -15,6 +15,9 @@
 //===----------------------------------------------------------------------===//
 
 
+use std::fs::File;
+use std::io::BufReader;
+use std::str::FromStr;
 use std::{
     borrow::Cow,
     error::Error,
@@ -385,9 +388,16 @@ enum ProgramOpt{
 }
 
 #[derive(Debug)]
+enum CmdlineOpt{
+    Str(OsString),
+    Null,
+    FromJSONFile(OsString), // filename
+}
+
+#[derive(Debug)]
 struct ExecOptions{
     program : ProgramOpt,
-    cmdline : Option<OsString>,
+    cmdline : CmdlineOpt,
     prepend_program : bool,
     strip_program : bool,
     dry_run : bool,
@@ -430,6 +440,7 @@ USAGE:
     [<PRINT_OPTION>...]
     [--print-args]
     [--dry-run]
+    [--split-and-print-inner-cmdline]
     {{
       {{ {{ --program <program> | --program-utf16le-base64 <encoded-program> }} [--prepend-program] }} |
       {{ --program-from-cmd-line [--strip-program] }} |
@@ -439,9 +450,9 @@ USAGE:
       --cmd-line-is-null |
       --cmd-line-in-arg <cmdline> |
       --cmd-line-utf16le-base64 <encoded-cmd-line> |
+      --cmd-line-from-json-array <file> |
       --cmd-line-is-rest <arg>...
     }}
-    [--split-and-print-inner-cmdline]
 
 
 DESCRIPTION:
@@ -461,6 +472,9 @@ OPTIONS:
 
   --dry-run
     Don’t actually execute the program.
+
+  --split-and-print-inner-cmdline
+    Split the command line assembled from the value of a `--cmd-line-*` option and other options into arguments and print those arguments.
 
   --print-args-only
     Print all arguments to this program and do nothing else.
@@ -494,11 +508,11 @@ OPTIONS:
   --cmd-line-utf16le-base64 <encoded-cmd-line>
     Specify the command line as an base64-encoded UTF-16 little endian string.
 
+  --cmd-line-from-json <file>
+    Read the command line from a JSON file. Write a dash/hyphen (-) for stdin.
+
   --cmd-line-is-rest <arg>...
     Use the rest of the command line as new command line.
-
-  --split-and-print-inner-cmdline
-    Split the command line assembled from the value of a `--cmd-line-*` option and other options into arguments and print those arguments.
 
 
 PRINT_OPTIONS:
@@ -598,7 +612,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
     let opt_silent : &OsStr = OsStr::new("--silent");
 
     let mut program : Option<ProgramOpt> = None;
-    let mut cmdline_opt : Option<Option<OsString>> = None;
+    let mut cmdline_opt : Option<CmdlineOpt> = None;
     let mut prepend_program : bool = false;
     let mut strip_program : bool = false;
     let mut dry_run : bool = false;
@@ -684,7 +698,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
                 match args_iter.next() {
-                    Some(next_arg) => cmdline_opt = Some(Some(next_arg.arg.clone())),
+                    Some(next_arg) => cmdline_opt = Some(CmdlineOpt::Str(next_arg.arg.clone())),
                     None => return Err(format!("missing argument for option:\n  {}", &arg)),
                 }
             },
@@ -695,7 +709,7 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                 match args_iter.next() {
                     Some(next_arg) => {
                         match decode_utf16le_base64(&next_arg.arg) {
-                            Ok(p) => cmdline_opt = Some(Some(p)),
+                            Ok(p) => cmdline_opt = Some(CmdlineOpt::Str(p)),
                             Err(err_str) => return Err(format!("bad argument for the following option: {}\n {}\nbad argument:\n {}", &err_str, &arg, &next_arg)),
                         }
                     },
@@ -706,14 +720,14 @@ fn get_options(cmd_line : &[u16], args: &Vec<Arg>) -> Result<MainOptions,String>
                 if cmdline_opt.is_some() {
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
-                cmdline_opt = Some(Some(OsString::from_wide(get_rest(cmd_line, arg))));
+                cmdline_opt = Some(CmdlineOpt::Str(OsString::from_wide(get_rest(cmd_line, arg))));
                 break; // break, because all args get consumed
             },
             x if x == opt_cmd_line_is_null => {
                 if cmdline_opt.is_some() {
                     return Err(format!("bad option, cmd line is already initilaized:\n  {}", &arg));
                 }
-                cmdline_opt = Some(None);
+                cmdline_opt = Some(CmdlineOpt::Null);
             },
             _other => {
                 return Err(format!("unknown option:\n  {}", &arg));
@@ -837,19 +851,6 @@ impl StdOutOrStdErr{
     }
 }
 
-#[derive(Deserialize, Debug)]
-struct Args {
-    args: Vec<String>,
-}
-
-fn exeperiment_with_stdin() -> Result<Args, String> {
-    let stdin_lock = io::stdin().lock();
-    let mut de = serde_json::Deserializer::from_reader(stdin_lock);
-    let args = Args::deserialize(&mut de).map_err(|error| error.to_string())?;
-
-    Ok(args)
-}
-
 fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = get_command_line()?;
     let parsed_args_list : Vec<Arg<'static>> = parse_lp_cmd_line(cmdline, true);
@@ -857,11 +858,6 @@ fn main() -> Result<(), String>{
         Some(arg) => arg.arg.to_string_lossy(),
         None => std::borrow::Cow::from("create-process-rust"),
     };
-
-    let args: Args = exeperiment_with_stdin()?;
-    for arg in args.args{
-        println!("arg: {}", arg);
-    }
 
     let options : MainOptions = match get_options(cmdline, &parsed_args_list){
         Ok(options) => options,
@@ -951,6 +947,42 @@ fn print_inner_cmdline(cmdline_opt: &Option<OsString>, print_opts: &PrintOptions
     Ok(())
 }
 
+#[derive(Deserialize, Debug)]
+struct JsonUserInput {
+    args: Option<Vec<String>>,
+    cmdline: Option<String>,
+    program: Option<String>,
+}
+
+enum StdInOrBufReader{
+    StdIn(std::io::StdinLock<'static>),
+    BufReader(std::io::BufReader<File>),
+}
+
+impl StdInOrBufReader{
+    fn into_writer(&mut self) -> &mut dyn io::Read {
+        match self {
+            StdInOrBufReader::StdIn(stdin) => stdin,
+            StdInOrBufReader::BufReader(bufreader) => bufreader,
+        }
+    }
+}
+
+fn read_user_input_from_file(file : &OsStr) -> Result<JsonUserInput, String> {
+    let reader = if file == OsStr::new("-") {
+        StdInOrBufReader::StdIn(io::stdin().lock())
+    } else {
+        let file = File::open(file).map_err(|error| error.to_string())?;
+        let bufReader = std::io::BufReader::new(file);
+        StdInOrBufReader::BufReader(bufReader)
+    };
+    let mut de = serde_json::Deserializer::from_reader(reader.into_writer());
+    let user_input = JsonUserInput::deserialize(&mut de).map_err(|error| error.to_string())?;
+
+    Ok(user_input)
+}
+
+
 fn exec(
     exec_options: ExecOptions,
     print_opts: PrintOptions,
@@ -972,6 +1004,8 @@ fn exec(
     if exec_options.prepend_program && (match exec_options.program { ProgramOpt::Str(_) => false, _ => true }) {
         return Err("Error: \"--prepend-program\" can only be specified with \"--program\".".to_owned());
     }
+
+    // TODO: call read_user_input_from_file() here
 
     let mut new_cmdline : Option<OsString> = exec_options.cmdline;
 
