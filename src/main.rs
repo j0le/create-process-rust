@@ -385,6 +385,7 @@ enum ProgramOpt{
     Str(OsString),
     Null,
     FromCmdLine,
+    FromJSONFile(OsString), // filename
 }
 
 #[derive(Debug)]
@@ -968,13 +969,17 @@ impl StdInOrBufReader{
     }
 }
 
+fn is_filename_stdin(file_name : &OsStr) -> bool {
+    file_name == OsStr::new("-")
+}
+
 fn read_user_input_from_file(file : &OsStr) -> Result<JsonUserInput, String> {
-    let reader = if file == OsStr::new("-") {
+    let mut reader = if is_filename_stdin(file) {
         StdInOrBufReader::StdIn(io::stdin().lock())
     } else {
         let file = File::open(file).map_err(|error| error.to_string())?;
-        let bufReader = std::io::BufReader::new(file);
-        StdInOrBufReader::BufReader(bufReader)
+        let buf_reader = std::io::BufReader::new(file);
+        StdInOrBufReader::BufReader(buf_reader)
     };
     let mut de = serde_json::Deserializer::from_reader(reader.into_writer());
     let user_input = JsonUserInput::deserialize(&mut de).map_err(|error| error.to_string())?;
@@ -982,6 +987,15 @@ fn read_user_input_from_file(file : &OsStr) -> Result<JsonUserInput, String> {
     Ok(user_input)
 }
 
+
+fn get_cmdline_from_json(json_user_input : &JsonUserInput) -> Result<OsString,String> {
+
+    return Err("TEMP TODO".to_owned());
+}
+fn get_program_from_json(json_user_input : &JsonUserInput) -> Result<OsString,String> {
+
+    return Err("TEMP TODO".to_owned());
+}
 
 fn exec(
     exec_options: ExecOptions,
@@ -997,39 +1011,63 @@ fn exec(
             .map_err(|error| error.to_string())?;
     }
 
-    if exec_options.strip_program && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true }) {
-        return Err("Error: \"--strip-program\" can only be specified with \"--program-from-cmd-line\".".to_owned());
+    if exec_options.strip_program
+        && (match exec_options.program { ProgramOpt::FromCmdLine => false, _ => true })
+    {
+        return Err("Error: \"--strip-program\" can only be specified with \
+                   \"--program-from-cmd-line\".".to_owned());
     }
 
-    if exec_options.prepend_program && (match exec_options.program { ProgramOpt::Str(_) => false, _ => true }) {
-        return Err("Error: \"--prepend-program\" can only be specified with \"--program\".".to_owned());
+    if exec_options.prepend_program
+        && (match &exec_options.program { ProgramOpt::FromCmdLine => true, ProgramOpt::Null => true, _ => false }) {
+        return Err("Error: \"--prepend-program\" can not be combined with \
+                   \"--program-from-cmd-line\" or \"--program-is-null\".".to_owned());
     }
 
-    // TODO: call read_user_input_from_file() here
+    let cmdline_comes_from_stdin =
+        if let CmdlineOpt::FromJSONFile(file_name) = &exec_options.cmdline{
+            is_filename_stdin(file_name)
+        }
+        else {false};
+    let program_comes_from_stdin =
+        if let ProgramOpt::FromJSONFile(file_name) = &exec_options.program{
+            is_filename_stdin(file_name)
+        }
+        else {false};
 
-    let mut new_cmdline : Option<OsString> = exec_options.cmdline;
+    let json_user_input_from_stdin : Option<JsonUserInput> =
+        if cmdline_comes_from_stdin || program_comes_from_stdin {
+            Some(read_user_input_from_file(OsStr::new("-"))?)
+        } else {
+            None
+        };
+
+    let mut new_cmdline : Option<OsString> = match exec_options.cmdline {
+        CmdlineOpt::Str(os_str) => Some(os_str),
+        CmdlineOpt::Null => None,
+        CmdlineOpt::FromJSONFile(file_name) => {
+            Some(
+                if cmdline_comes_from_stdin { get_cmdline_from_json((&json_user_input_from_stdin).as_ref().unwrap())? }
+                else { get_cmdline_from_json(&read_user_input_from_file(&file_name)?)? }
+            )
+        },
+    };
+
 
     let program: Option<Cow<'_,OsStr>> = match exec_options.program {
         ProgramOpt::Null => {
             None
         },
+        ProgramOpt::FromJSONFile(file_name) => {
+            let program_from_json : OsString =
+                if program_comes_from_stdin {
+                    get_program_from_json((&json_user_input_from_stdin).as_ref().unwrap())? }
+                else {
+                    get_program_from_json(&read_user_input_from_file(&file_name)?)?
+                };
+            Some(Cow::from(program_from_json))
+        }
         ProgramOpt::Str(prog) => {
-            if exec_options.prepend_program {
-                match &new_cmdline {
-                    &None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
-                    &Some(ref old_cmd) => {
-                        let prog_vec: Vec<u16> = prog.encode_wide().collect();
-                        let escaped_arg_zero = escape_arg_zero(&prog_vec, false)?;
-                        if let Some(warning) = escaped_arg_zero.warning {
-                            eprintln!("Warning: {}", warning);
-                        }
-                        let mut new_cmd = OsString::from_wide(&escaped_arg_zero.escaped);
-                        new_cmd.push(OsString::from(" "));
-                        new_cmd.push(OsString::from(old_cmd));
-                        new_cmdline = Some(new_cmd);
-                    },
-                }
-            }
             Some(Cow::from(prog))
         },
         ProgramOpt::FromCmdLine => {
@@ -1054,8 +1092,31 @@ fn exec(
         },
     };
 
+    match &program {
+        Some(cow_prog) => 
+            if exec_options.prepend_program {
+                match &new_cmdline {
+                    &None => return Err("Cannot prepend program to cmdline, if cmdline is NULL.".to_owned()),
+                    &Some(ref old_cmd) => {
+                        let prog_vec: Vec<u16> = cow_prog.encode_wide().collect();
+                        let escaped_arg_zero = escape_arg_zero(&prog_vec, false)?;
+                        if let Some(warning) = escaped_arg_zero.warning {
+                            eprintln!("Warning: {}", warning);
+                        }
+                        let mut new_cmd = OsString::from_wide(&escaped_arg_zero.escaped);
+                        new_cmd.push(OsString::from(" "));
+                        new_cmd.push(OsString::from(old_cmd));
+                        new_cmdline = Some(new_cmd);
+                    },
+                }
+            }
+        None => {}
+    };
 
-    let mut writer_wrapper: StdOutOrStdErr = if print_opts.print_args || exec_options.split_and_print_inner_cmdline { StdOutOrStdErr::StdErr(io::stderr())} else { StdOutOrStdErr::StdOut(io::stdout()) } ;
+
+    let mut writer_wrapper: StdOutOrStdErr =
+        if print_opts.print_args || exec_options.split_and_print_inner_cmdline { StdOutOrStdErr::StdErr(io::stderr())}
+        else { StdOutOrStdErr::StdOut(io::stdout()) };
 
     // from https://doc.rust-lang.org/std/option/ :
     //   as_deref converts from &Option<T> to Option<&T::Target>
