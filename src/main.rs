@@ -16,8 +16,6 @@
 
 
 use std::fs::File;
-use std::io::BufReader;
-use std::str::FromStr;
 use std::{
     borrow::Cow,
     error::Error,
@@ -987,10 +985,31 @@ fn read_user_input_from_file(file : &OsStr) -> Result<JsonUserInput, String> {
     Ok(user_input)
 }
 
+fn get_cmdline_from_args<'a, I>(mut args : I) -> String
+where
+    I : std::iter::Iterator<Item = &'a str>
+{
+    let result : String = String::new();
+    for arg in args {
+
+    }
+    return result;
+}
 
 fn get_cmdline_from_json(json_user_input : &JsonUserInput) -> Result<OsString,String> {
+    if json_user_input.cmdline.is_some() && json_user_input.args.is_some() {
+        return Err("Do not provide \"args\" and \"cmdline\" in JSON".to_owned());
+    }
 
-    return Err("TEMP TODO".to_owned());
+    if let Some(cmdline) = &json_user_input.cmdline {
+        Ok(OsString::from(cmdline))
+    }else if let Some(args) = &json_user_input.args {
+        let cmdline : String = get_cmdline_from_args(args.iter().map(|arg| arg.as_str()));
+        Ok(OsStr::new("").to_owned())
+    }
+    else{
+        Err("".to_owned())
+    }
 }
 fn get_program_from_json(json_user_input : &JsonUserInput) -> Result<OsString,String> {
 
