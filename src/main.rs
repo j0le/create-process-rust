@@ -985,13 +985,16 @@ fn read_user_input_from_file(file : &OsStr) -> Result<JsonUserInput, String> {
     Ok(user_input)
 }
 
-fn get_cmdline_from_args<'a, I>(mut args : I) -> String
+
+fn get_cmdline_from_args<'a, I, S>(args : I) -> String
 where
-    I : std::iter::Iterator<Item = &'a str>
+    S : AsRef<str> + 'a ,
+    I : std::iter::Iterator<Item = S>
 {
     let result : String = String::new();
     for arg in args {
-
+        let s : &str = arg.as_ref();
+        println!("DEBUG: {}", s);
     }
     return result;
 }
@@ -1004,7 +1007,7 @@ fn get_cmdline_from_json(json_user_input : &JsonUserInput) -> Result<OsString,St
     if let Some(cmdline) = &json_user_input.cmdline {
         Ok(OsString::from(cmdline))
     }else if let Some(args) = &json_user_input.args {
-        let cmdline : String = get_cmdline_from_args(args.iter().map(|arg| arg.as_str()));
+        let cmdline : String = get_cmdline_from_args(args.iter());
         Ok(OsStr::new("").to_owned())
     }
     else{
