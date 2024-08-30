@@ -18,6 +18,7 @@
 use std::fs::File;
 use std::{
     borrow::Cow,
+    convert::AsRef,
     error::Error,
     ffi::OsStr,
     ffi::OsString,
@@ -985,6 +986,54 @@ fn read_user_input_from_file(file : &OsStr) -> Result<JsonUserInput, String> {
     Ok(user_input)
 }
 
+fn ensure_no_nuls<O: AsRef<OsStr>>(os_str: O) -> Result<(), String>{
+    let os_str : &OsStr = os_str.as_ref();
+    if os_str.encode_wide().any(|u| u == 0u16) {
+        return Err("OsStr contains a NUL character".to_owned());
+    }
+    Ok(())
+}
+
+fn append_arg<O: AsRef<OsStr>>(cmdline: &mut Vec<u16>, arg: O, force_quotes: bool, raw: bool) -> Result<(), String> {
+    const BACKSLASH: u16 = b'\\' as u16;
+    const QUOTE: u16 = b'"' as u16;
+    const TAB: u16 = b'\t' as u16;
+    const SPACE: u16 = b' ' as u16;
+
+    ensure_no_nuls(&arg)?;
+    let arg : &OsStr = arg.as_ref();
+
+    let (quote, escape) : (bool, bool) = 
+        if raw { (false, false) } 
+        else { (force_quotes || arg.is_empty() || arg.encode_wide().any(|c| c == SPACE || c == TAB), true) };
+
+    if quote {
+        cmdline.push(QUOTE);
+    }
+
+    let mut backslashes: usize = 0;
+    for x in arg.encode_wide() {
+        if escape {
+            if x == BACKSLASH {
+                backslashes += 1;
+            } else {
+                if x == QUOTE {
+                    // Add n+1 backslashes to total 2n+1 before internal '"'.
+                    cmdline.extend((0..=backslashes).map(|_| BACKSLASH));
+                }
+                backslashes = 0;
+            }
+        }
+        cmdline.push(x);
+    }
+    if quote {
+        // Add n backslashes to total 2n before ending '"'.
+        cmdline.extend((0..backslashes).map(|_| BACKSLASH));
+        cmdline.push('"' as u16);
+    }
+
+    Ok(())
+}
 
 fn get_cmdline_from_args<'a, I, S>(args : I) -> String
 where
