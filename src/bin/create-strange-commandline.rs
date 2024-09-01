@@ -75,10 +75,16 @@ fn main() {
 
     let home_dir = home_dir().expect("couldn't get home directory");
 
-    let get_command_line: PathBuf = { let mut p = home_dir.clone(); p.push("prog\\get-command-line\\x64\\Debug\\get-command-line.exe"); p };
-    let pargs:            PathBuf = { let mut p = home_dir.clone(); p.push("prog\\create-process-rust\\cpp\\build.d\\pargs.exe");       p };
-    let pargs_utf8:       PathBuf = { let mut p = home_dir.clone(); p.push("prog\\create-process-rust\\cpp\\build.d\\pargs-utf8.exe");  p };
-    let cpr:              PathBuf = { let mut p = home_dir.clone(); p.push("prog\\create-process-rust\\cpr.exe");                       p };
+    let append_to_homedir = |extra| {
+        let mut p = home_dir.clone();
+        p.push(extra);
+        p
+    };
+    let get_command_line: PathBuf = append_to_homedir("prog\\get-command-line\\x64\\Debug\\get-command-line.exe");
+    let pargs:            PathBuf = append_to_homedir("prog\\create-process-rust\\cpp\\build.d\\pargs.exe");
+    let pargs_utf8:       PathBuf = append_to_homedir("prog\\create-process-rust\\cpp\\build.d\\pargs-utf8.exe");
+    let cpr:              PathBuf = append_to_homedir("prog\\create-process-rust\\cpr.exe");
+
     let commands = [
         Command::new(&get_command_line),
         Command::new(&pargs),
