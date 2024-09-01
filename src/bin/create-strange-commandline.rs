@@ -47,9 +47,9 @@ fn main() {
 
 
     const GET_COMMAND_LINE: &str = "C:\\Users\\USER\\prog\\get-command-line\\x64\\Debug\\get-command-line.exe";
-    const PARGS: &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\pargs.exe";
-    const PARGS_UTF8: &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\pargs-utf8.exe";
-    const CPR: &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpr.exe";
+    const PARGS:            &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\build.d\\pargs.exe";
+    const PARGS_UTF8:       &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\build.d\\pargs-utf8.exe";
+    const CPR:              &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpr.exe";
     let commands = [
         Command::new(GET_COMMAND_LINE),
         Command::new(PARGS),
