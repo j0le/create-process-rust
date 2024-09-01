@@ -75,6 +75,8 @@ fn main() {
 
     let home_dir = home_dir().expect("couldn't get home directory");
 
+    println!("Home dir: {}", home_dir.to_string_lossy());
+
     let append_to_homedir = |extra| {
         let mut p = home_dir.clone();
         p.push(extra);
