@@ -1,10 +1,38 @@
-use std::process::Command;
 use std::ffi::{OsStr,OsString};
-use  std::os::windows::ffi::{OsStrExt,OsStringExt};
+use std::os::windows::ffi::{OsStrExt,OsStringExt};
+use std::path::PathBuf;
+use std::process::Command;
+use windows::Win32::Foundation::HANDLE;
+use windows::Win32::UI::Shell::GetUserProfileDirectoryW;
+use windows::core::PWSTR;
 
 // - The goal is, to create a commandline with invalid UTF16
 // - Another goal is to crate a commandline with a character that, if encoded as UTF16, has one byte
 //   that is a ASCII Space character
+
+fn home_dir() -> Option<PathBuf> {
+    // https://github.com/rust-lang/rust/pull/90144
+    // "Use a hardcoded constant instead of calling OpenProcessToken"
+    let current_process_token : HANDLE = HANDLE{ 0 : -4isize};
+    const NUMBER_OF_WCHARS: u32 = 512u32;
+    // FIXME: Zero initialization is unnecessary. Consider using std::mem::MaybeUninit.
+    let mut u16_array : [u16; NUMBER_OF_WCHARS as usize] = [0u16; NUMBER_OF_WCHARS as usize];
+    let buf = PWSTR::from_raw(u16_array.as_mut_ptr());
+    let mut acutal_size_in_wchars: u32 = NUMBER_OF_WCHARS;
+    unsafe {
+        if GetUserProfileDirectoryW(current_process_token, buf, &mut acutal_size_in_wchars as *mut u32).as_bool(){
+            if acutal_size_in_wchars > NUMBER_OF_WCHARS || acutal_size_in_wchars == 0u32 {
+                panic!("Unexpected return value of GetUserProfileDirectoryW");
+            }else{
+                let size_without_terminating_nul = acutal_size_in_wchars-1;
+                return Some(PathBuf::from(OsString::from_wide(&u16_array[0..size_without_terminating_nul as usize])));
+            }
+        }
+        else {
+            return None;
+        }
+    };
+}
 
 fn print_os_str<O: AsRef<OsStr>>(os_str: O) {
     let os_str : &OsStr = os_str.as_ref();
@@ -45,17 +73,18 @@ fn main() {
         combined
     };
 
+    let home_dir = home_dir().expect("couldn't get home directory");
 
-    const GET_COMMAND_LINE: &str = "C:\\Users\\USER\\prog\\get-command-line\\x64\\Debug\\get-command-line.exe";
-    const PARGS:            &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\build.d\\pargs.exe";
-    const PARGS_UTF8:       &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\build.d\\pargs-utf8.exe";
-    const CPR:              &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpr.exe";
+    let get_command_line: PathBuf = { let mut p = home_dir.clone(); p.push("prog\\get-command-line\\x64\\Debug\\get-command-line.exe"); p };
+    let pargs:            PathBuf = { let mut p = home_dir.clone(); p.push("prog\\create-process-rust\\cpp\\build.d\\pargs.exe");       p };
+    let pargs_utf8:       PathBuf = { let mut p = home_dir.clone(); p.push("prog\\create-process-rust\\cpp\\build.d\\pargs-utf8.exe");  p };
+    let cpr:              PathBuf = { let mut p = home_dir.clone(); p.push("prog\\create-process-rust\\cpr.exe");                       p };
     let commands = [
-        Command::new(GET_COMMAND_LINE),
-        Command::new(PARGS),
-        Command::new(PARGS_UTF8),
-        {let mut c = Command::new(CPR); c.arg("--print-args-only"); c},
-        {let mut c = Command::new(CPR); c.arg("--json").arg("--print-args-only"); c},
+        Command::new(&get_command_line),
+        Command::new(&pargs),
+        Command::new(&pargs_utf8),
+        {let mut c = Command::new(&cpr); c.arg("--print-args-only"); c},
+        {let mut c = Command::new(&cpr); c.arg("--json").arg("--print-args-only"); c},
     ];
 
     for mut command in commands {
