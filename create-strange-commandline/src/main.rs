@@ -50,12 +50,17 @@ fn main() {
     const PARGS: &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\pargs.exe";
     const PARGS_UTF8: &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpp\\pargs-utf8.exe";
     const CPR: &str = "C:\\Users\\USER\\prog\\create-process-rust\\cpr.exe";
-    const PROGS: &[&str] = &[GET_COMMAND_LINE,PARGS,PARGS_UTF8,CPR];
-    for &prog in PROGS {
-        println!("starting {}", prog);
-        let mut child = Command::new(prog)
-            //.arg("--json")
-            .arg("--print-args-only")
+    let commands = [
+        Command::new(GET_COMMAND_LINE),
+        Command::new(PARGS),
+        Command::new(PARGS_UTF8),
+        {let mut c = Command::new(CPR); c.arg("--print-args-only"); c},
+        {let mut c = Command::new(CPR); c.arg("--json").arg("--print-args-only"); c},
+    ];
+
+    for mut command in commands {
+        println!("starting {}", command.get_program().to_string_lossy());
+        let mut child = command
             .arg(smiley)
             .arg("Moin Tach")
             .arg(&smiley_text)
