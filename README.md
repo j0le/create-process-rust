@@ -4,6 +4,8 @@
 
 ## Command lines on Windows
 
+A more in-depth explanation can be found here: https://daviddeley.com/autohotkey/parameters/parameters.htm#WIN .
+
 On Windows, if a process asks the operating system for it's command line, it doesn't get an array of arguments, but only *one* UTF-16 string.
 The parsing into individual arguments is normally done with this algorithm: https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments?view=msvc-170 .
 This is the algorithm of the Microsoft C-Runtime. (It can also be implemented in other languages.)
@@ -27,10 +29,23 @@ See for example:
 - [PSNativeCommandArgumentPassing](https://learn.microsoft.com/en-us/powershell/scripting/learn/experimental-features?view=powershell-7.3#psnativecommandargumentpassing)
 - Issue on GitHub: https://github.com/PowerShell/PowerShell/issues/14747
 
-On Linux, if a process asks the operating system for it's command line, it gets an array of arguments directly from the OS.
+On Linux, if a process asks the operating system for it's command line, it gets an *array* of arguments directly from the OS.
 These arguments do not have an encoding, but cannot contain a null byte. The encoding used to decode these arguments is typlically UTF-8.
 But some programs look into environment variables to figure out, which arguments to use. 
 I assume, that those programs asume, that the environments variables (their names and their values) are encoded in ASCII.
+
+## Different command lines &#x2013; same result
+
+If a program named `prog` is excuted with any of these command lines and the algorithm of the Microsoft CRT is used, the result is always the same:
+
+- `prog.exe --input:"Hello World"    --another-option`
+- `prog.exe "--input:Hello World" --another-option`
+- `prog.exe    --input:Hello" "World              --another-option`
+
+The result is an array of these arguments:
+- `prog.exe`
+- `--input:Hello World`
+- `another-option`
 
 ## Usage
 
