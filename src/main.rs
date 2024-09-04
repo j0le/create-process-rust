@@ -21,13 +21,11 @@ mod commandline;
 mod process;
 mod options;
 
-use std::fs::File;
 use std::{
     borrow::Cow,
     convert::AsRef,
     ffi::OsStr,
     ffi::OsString,
-    fmt,
     io,
     io::Write,
     os::windows::ffi::OsStrExt,
@@ -37,8 +35,6 @@ use std::{
 };
 
 use itertools::Itertools;
-
-use base64::Engine as _;
 
 use crate::commandline::*;
 use crate::options::*;

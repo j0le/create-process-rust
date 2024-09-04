@@ -1,15 +1,9 @@
 use std::{
-    borrow::Cow,
-    convert::AsRef,
     ffi::OsStr,
     ffi::OsString,
-    fmt,
     io,
     io::Write,
-    os::windows::ffi::OsStrExt,
     os::windows::ffi::OsStringExt,
-    thread,
-    time,
 };
 use base64::{engine::general_purpose::STANDARD as base64_STANDARD, Engine as _};
 

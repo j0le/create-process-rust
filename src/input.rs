@@ -2,13 +2,8 @@ use std::fs::File;
 use std::{
     ffi::OsStr,
     ffi::OsString,
-    fmt,
     io,
-    os::windows::ffi::OsStrExt,
-    os::windows::ffi::OsStringExt,
 };
-
-use itertools::Itertools;
 
 use serde::{
     Deserialize,

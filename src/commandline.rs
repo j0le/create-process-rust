@@ -1,16 +1,10 @@
 use std::{
     borrow::Cow,
     convert::AsRef,
-    error::Error,
     ffi::OsStr,
     ffi::OsString,
-    fmt,
-    io,
-    io::Write,
     os::windows::ffi::OsStrExt,
     os::windows::ffi::OsStringExt,
-    thread,
-    time,
 };
 use windows::Win32::System::Environment;
 
