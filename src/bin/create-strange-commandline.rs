@@ -6,6 +6,8 @@ use windows::Win32::Foundation::HANDLE;
 use windows::Win32::UI::Shell::GetUserProfileDirectoryW;
 use windows::core::PWSTR;
 
+mod murks;
+
 // - The goal is, to create a commandline with invalid UTF16
 // - Another goal is to crate a commandline with a character that, if encoded as UTF16, has one byte
 //   that is a ASCII Space character
@@ -49,7 +51,7 @@ fn print_os_str<O: AsRef<OsStr>>(os_str: O) {
 }
 
 fn main() {
-    println!("Hello, world!");
+    murks::hello();
     let smiley = OsStr::new("\u{1f600}");
     print_os_str(&smiley);
     let smiley_text = {
