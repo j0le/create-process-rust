@@ -41,38 +41,6 @@ use crate::options::*;
 use crate::input::*;
 
 
-
-
-
-
-
-fn quote_or_null
-    <S: AsRef<OsStr>>
-    (opt: Option<S>)
-    -> Cow<'static, str>
-{
-    match opt {
-        None => Cow::from("NULL"),
-        Some(os_str) => Cow::from(format!("»{}«",os_str.as_ref().to_string_lossy())),
-    }
-}
-
-
-
-enum StdOutOrStdErr{
-    StdOut(std::io::Stdout),
-    StdErr(std::io::Stderr),
-}
-
-impl StdOutOrStdErr{
-    fn into_writer(&mut self) -> &mut dyn io::Write {
-        match self {
-            StdOutOrStdErr::StdOut(stdout) => stdout,
-            StdOutOrStdErr::StdErr(stderr) => stderr,
-        }
-    }
-}
-
 fn main() -> Result<(), String>{
     let cmdline: &'static [u16] = crate::commandline::get_command_line()?;
     let parsed_args_list : Vec<Arg<'static>> = crate::commandline::parse_lp_cmd_line(cmdline, true);
@@ -286,6 +254,33 @@ fn exec(
         }
     }
     std::process::exit(exit_code as i32);
+}
+
+fn quote_or_null
+    <S: AsRef<OsStr>>
+    (opt: Option<S>)
+    -> Cow<'static, str>
+{
+    match opt {
+        None => Cow::from("NULL"),
+        Some(os_str) => Cow::from(format!("»{}«",os_str.as_ref().to_string_lossy())),
+    }
+}
+
+
+
+enum StdOutOrStdErr{
+    StdOut(std::io::Stdout),
+    StdErr(std::io::Stderr),
+}
+
+impl StdOutOrStdErr{
+    fn into_writer(&mut self) -> &mut dyn io::Write {
+        match self {
+            StdOutOrStdErr::StdOut(stdout) => stdout,
+            StdOutOrStdErr::StdErr(stderr) => stderr,
+        }
+    }
 }
 
 
