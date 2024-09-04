@@ -15,6 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 
+mod input;
+mod output;
+mod commandline;
+mod process;
+mod options;
+
 use std::fs::File;
 use std::{
     borrow::Cow,
