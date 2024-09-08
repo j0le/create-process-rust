@@ -9,17 +9,17 @@ A more in-depth explanation can be found here: https://daviddeley.com/autohotkey
 On Windows, if a process asks the operating system for it's command line, it doesn't get an array of arguments, but only *one* UTF-16 string.
 The parsing into individual arguments is normally done with this algorithm: https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments?view=msvc-170 .
 This is the algorithm of the Microsoft C-Runtime. (It can also be implemented in other languages.)
-But many programs including `cmd.exe` and `msbuild.exe` do it differently.
+But many programs parse their command line differently (for example `msbuild.exe` and `cmd.exe`).
 
 When working in a shell or command prompt, one has to think about the how the shell processes the input of the user and how it construct the command line, that it passes to [`CreateProcessW()`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw).
 `CreateProcessW()` is the low level function to create processes on Windows.
 
-For example the projects “[git for Windows](https://gitforwindows.org/)”, [MSYS2](https://www.msys2.org/) and [Cygwin](https://www.cygwin.com/) port the shell [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) to windows.
+For example the projects “[git for Windows](https://gitforwindows.org/)”, [MSYS2](https://www.msys2.org/) and [Cygwin](https://www.cygwin.com/) port the shell [Bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) to Windows.
 This ported bash works like this (simplified):
 
 - The user enters a command line
 - The command line is split into an array of arguments, respecting the special characters of bash, for example: `'`, `"`, `$`, ...
-- UNIX paths are converted to Windows paths (forward slash to backslash)
+- UNIX paths are converted to Windows paths
 - A new command line is put together acording to the [Microsoft CRT algorithm](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments?view=msvc-170).
 - `CreateProcessW()` is called with that command line.
 
@@ -55,13 +55,15 @@ Use `--help` to get the up-to-date usage description:
 create-process-rust.exe --help
 ```
 
+## Examples
+
 Here is an example. If we enter this commandline in git-bash:
 
 ```bash
 target/debug/create-process-rust.exe --print-args-only 'Alice asks: "How are you?"'      'Bob answers: "I'\''m fine!"' --some-path /c/Program\ Files/Git
 ```
 
-We get for example this output:
+We get this output:
 
 ```
 The command line was converted losslessly.
@@ -75,6 +77,16 @@ Argument  3, 125 .. 153, lossless: »Bob answers: "I'm fine!"«, raw: »"Bob ans
 Argument  4, 154 .. 165, lossless: »--some-path«, raw: »--some-path«
 Argument  5, 166 .. 188, lossless: »C:/Program Files/Git«, raw: »"C:/Program Files/Git"«
 ```
+
+As you can see, the command line is devided into six arguments (Arguments 0 through 5).
+Notice these things:
+- The program "create-process-rust" reports another command line than the one entered in the shell.
+- Most single quotes (`'`) have become double quotes (`"`).
+- Double quotes inside of arguments are preceded by backslashes.
+- Multiple space characters are reduced to one.
+- The UNIX-style path `/c/Program\ Files/Git` is converted to the Windows-style path `C:/Program Files/Git`.
+
+All theses thins are done by git-bash.
 
 If we enter the following into `cmd.exe`:
 
