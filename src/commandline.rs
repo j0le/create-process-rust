@@ -81,7 +81,7 @@ impl<'a> ArgListBuilder<'a> {
     }
 }
 
-pub fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
+pub(super) fn get_rest<'a>(cmd_line:&'a[u16], arg: &Arg<'a>) -> &'a[u16]{
     let start_of_rest = arg.range.end + 1;
     match cmd_line.get(start_of_rest) {
         Some(_) => {
