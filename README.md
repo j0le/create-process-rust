@@ -74,7 +74,7 @@ Also run them in `cmd.exe`.
 
 ### Example 2
 
-Here is an example. If we enter this commandline in git-bash:
+If we enter this commandline in git-bash:
 
 ```bash
 target/debug/create-process-rust.exe --print-args-only 'Alice asks: "How are you?"'      'Bob answers: "I'\''m fine!"' --some-path /c/Program\ Files/Git
@@ -103,7 +103,7 @@ Notice these things:
 - Multiple space characters are reduced to one.
 - The UNIX-style path `/c/Program\ Files/Git` is converted to the Windows-style path `C:/Program Files/Git`.
 
-All theses thins are done by git-bash.
+All theses things are done by git-bash.
 
 If we enter the following into `cmd.exe`:
 
