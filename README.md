@@ -55,7 +55,22 @@ Use `--help` to get the up-to-date usage description:
 create-process-rust.exe --help
 ```
 
-## Examples
+## Example 1
+
+Run each of these command lines one by one in git-bash and compare the output:
+
+```bash
+target/debug/create-process-rust.exe --print-args-only --input:"Hello World"    --another-option
+target/debug/create-process-rust.exe --print-args-only --input:'Hello World'    --another-option
+target/debug/create-process-rust.exe --print-args-only --input:Hello World" --another-option
+target/debug/create-process-rust.exe --print-args-only   --input:Hello" "World              --another-option
+target/debug/create-process-rust.exe --print-args-only --input:Hello\ World  --another-option
+
+```
+
+Also run them in `cmd.exe`.
+
+## Example 2
 
 Here is an example. If we enter this commandline in git-bash:
 
