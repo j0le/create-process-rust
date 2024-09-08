@@ -9,7 +9,7 @@ A more in-depth explanation can be found here: https://daviddeley.com/autohotkey
 On Windows, if a process asks the operating system for it's command line, it doesn't get an array of arguments, but only *one* UTF-16 string.
 The parsing into individual arguments is normally done with this algorithm: https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments?view=msvc-170 .
 This is the algorithm of the Microsoft C-Runtime. (It can also be implemented in other languages.)
-But many programs parse their command line differently (for example `msbuild.exe` and `cmd.exe`).
+But many programs parse their command line differently (for example `msbuild.exe` and [`cmd.exe`](/docs/how-is-cmd-special.md)).
 
 When working in a shell or command prompt, one has to think about the how the shell processes the input of the user and how it construct the command line, that it passes to [`CreateProcessW()`](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw).
 `CreateProcessW()` is the low level function to create processes on Windows.
@@ -55,7 +55,9 @@ Use `--help` to get the up-to-date usage description:
 create-process-rust.exe --help
 ```
 
-## Example 1
+## Examples
+
+### Example 1
 
 Run each of these command lines one by one in git-bash and compare the output:
 
@@ -70,7 +72,7 @@ target/debug/create-process-rust.exe --print-args-only --input:Hello\ World  --a
 
 Also run them in `cmd.exe`.
 
-## Example 2
+### Example 2
 
 Here is an example. If we enter this commandline in git-bash:
 
@@ -126,13 +128,17 @@ Argument  5, 133 .. 155, lossless: »C:/Program Files/Git«, raw: »"C:/Program 
 
 As you can see, cmd.exe preserves spaces between arguments, and git-bash does not. But somehow an extra spaces apears after argument zero.
 
-### Tip for git-bash / MSYS2 bash
+#### Tip for git-bash / MSYS2 bash
 
 Set the environement variable `MSYS_NO_PATHCONV` to `1` to disable path conversion; for example:
 
 ```sh
 MSYS_NO_PATHCONV=1 ./create-process-rust.exe --program "$(cygpath -wa "$(which cmd.exe)" )" --cmd-line-in-arg '/c (echo hello world)'
 ```
+
+### Example 3
+
+To see how `cmd.exe` parses it’s command line differently see [docs/how-is-cmd-special.md](/docs/how-is-cmd-special.md).
 
 ## Build Instructions for Windows
 
