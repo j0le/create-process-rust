@@ -64,7 +64,7 @@ Run each of these command lines one by one in git-bash and compare the output:
 ```bash
 target/debug/create-process-rust.exe --print-args-only --input:"Hello World"    --another-option
 target/debug/create-process-rust.exe --print-args-only --input:'Hello World'    --another-option
-target/debug/create-process-rust.exe --print-args-only --input:Hello World" --another-option
+target/debug/create-process-rust.exe --print-args-only "--input:Hello World" --another-option
 target/debug/create-process-rust.exe --print-args-only   --input:Hello" "World              --another-option
 target/debug/create-process-rust.exe --print-args-only --input:Hello\ World  --another-option
 
